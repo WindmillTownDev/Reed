@@ -1,41 +1,24 @@
-# ForkTest - A Paper fork, using paperweight
+# Reed
 
-This is an example project, showcasing how to setup a fork of Paper (or any other fork using paperweight), using paperweight.
+Reed is the dedicated server core for WindmillTown Network. It is a fork from Paper and aimed at providing features that can only be implemented by modifying the server core. Reed works together with WindmillTownCore, the dedicated plugin for WindmillTown. To be more procise, Reed only provides APIs and WindmillTownCore makes use of these APIs to provide user interfaces to players.
 
-The files of most interest are
-- build.gradle.kts
-- settings.gradle.kts
-- gradle.properties
+Currently Reed is dedicated on patching Paper in these perspectives:
 
-When updating upstream, be sure to keep the dependencies noted in `build.gradle.kts` in sync with upstream.
-It's also a good idea to use the same version of the Gradle wrapper as upstream.
+- Reverse Spigot and Paper patches that affect vanilla creative redstone behaviours, such as entity collisions, entity ticking, redstone optimizations and etc..
+  
+- Provide helpful redstone utilities that can only be implemented by modifying server, such as debug block and tickrate
+  
+- Improve redstone performance with the premise of not breaking vanilla redstone behaviour (todo)
+  
 
-## Tasks
+## Build
 
-```
-Paperweight tasks
------------------
-applyApiPatches
-applyPatches
-applyServerPatches
-cleanCache - Delete the project setup cache and task outputs.
-createMojmapBundlerJar - Build a runnable bundler jar
-createMojmapPaperclipJar - Build a runnable paperclip jar
-createReobfBundlerJar - Build a runnable bundler jar
-createReobfPaperclipJar - Build a runnable paperclip jar
-generateDevelopmentBundle
-rebuildApiPatches
-rebuildPatches
-rebuildServerPatches
-reobfJar - Re-obfuscate the built jar to obf mappings
-runDev - Spin up a non-relocated Mojang-mapped test server
-runReobf - Spin up a test server from the reobfJar output jar
-runShadow - Spin up a test server from the shadowJar archiveFile
-```
+Run ``gradle applyPatches`` to apply Reed patches to Paper source.
 
-## Branches
+Then ``gradle createReobfBundlerJar`` to build Reed server jar file.
 
-Each branch of this project represents an example:
+To develop WindmillTownCore, run ``gradle publishToMavenLocal`` so that Reed API will be built into your local maven repo.
 
- - [`main` is the standard example](https://github.com/PaperMC/paperweight-examples/tree/main)
- - [`submodules` shows how paperweight can be applied on a fork using the more traditional git submodule system](https://github.com/PaperMC/paperweight-examples/tree/submodules)
+## Personal Usage
+
+You are allowed to use Reed server and its source in any non-commercial usage. But WindmillTown Develop Team will not guarantee any in-time supports.
