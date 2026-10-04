@@ -5,10 +5,10 @@ Subject: [PATCH] Add player no clip
 
 
 diff --git a/net/minecraft/server/network/ServerGamePacketListenerImpl.java b/net/minecraft/server/network/ServerGamePacketListenerImpl.java
-index f936da2a1ffef5fd84d8d63be3575fd06ac9a7b2..6fbfae0ac8cca524c52d139b274a0af78162ecb3 100644
+index ee52233d15df9de9f5a0a85dcac7f7f38f8c004d..d2c9f26aa7012d1fa01526209b64844b711ce845 100644
 --- a/net/minecraft/server/network/ServerGamePacketListenerImpl.java
 +++ b/net/minecraft/server/network/ServerGamePacketListenerImpl.java
-@@ -3593,6 +3593,7 @@ public class ServerGamePacketListenerImpl
+@@ -3649,6 +3649,7 @@ public class ServerGamePacketListenerImpl
                  this.player.onUpdateAbilities(); // Tell the player their ability was reverted
              }
          }
@@ -17,7 +17,7 @@ index f936da2a1ffef5fd84d8d63be3575fd06ac9a7b2..6fbfae0ac8cca524c52d139b274a0af7
      }
  
 diff --git a/net/minecraft/world/entity/player/Player.java b/net/minecraft/world/entity/player/Player.java
-index 5d4b3ed09fe10f545d0720b2919f0d6c822d5196..9f4021efb363be81c38c7e67604af1b047f6899c 100644
+index 4068dc1cea4edca196dc0c58b4804e94dd07881e..1ff685459098cf44ba5044a621791f3b708fd2b2 100644
 --- a/net/minecraft/world/entity/player/Player.java
 +++ b/net/minecraft/world/entity/player/Player.java
 @@ -175,6 +175,27 @@ public abstract class Player extends Avatar implements ContainerUser {
@@ -57,10 +57,10 @@ index 5d4b3ed09fe10f545d0720b2919f0d6c822d5196..9f4021efb363be81c38c7e67604af1b0
          if (this.isSpectator() || this.isPassenger()) {
              this.setOnGround(false);
          }
-@@ -361,10 +382,10 @@ public abstract class Player extends Avatar implements ContainerUser {
+@@ -362,10 +383,10 @@ public abstract class Player extends Avatar implements ContainerUser {
      }
  
-     protected void updatePlayerPose() {
+     public void updatePlayerPose() {
 -        if (this.canPlayerFitWithinBlocksAndEntitiesWhen(Pose.SWIMMING)) {
 +        if (this.reed$isNoClipActive() || this.canPlayerFitWithinBlocksAndEntitiesWhen(Pose.SWIMMING)) { // Reed - player no clip
              Pose desiredPose = this.getDesiredPose();
@@ -70,14 +70,14 @@ index 5d4b3ed09fe10f545d0720b2919f0d6c822d5196..9f4021efb363be81c38c7e67604af1b0
                  actualPose = desiredPose;
              } else if (this.canPlayerFitWithinBlocksAndEntitiesWhen(Pose.CROUCHING)) {
                  actualPose = Pose.CROUCHING;
-@@ -1828,6 +1849,13 @@ public abstract class Player extends Avatar implements ContainerUser {
+@@ -1823,6 +1844,13 @@ public abstract class Player extends Avatar implements ContainerUser {
          return this.gameMode() == GameType.CREATIVE;
      }
  
 +    @Override
 +    public net.minecraft.world.level.material.PushReaction getPistonPushReaction() {
 +        return this.reed$isNoClipActive()
-+            ? net.minecraft.world.level.material.PushReaction.IGNORE
++            ? net.minecraft.world.level.material.PushReaction.IGNORE_ENTITY
 +            : super.getPistonPushReaction();
 +    }
 +

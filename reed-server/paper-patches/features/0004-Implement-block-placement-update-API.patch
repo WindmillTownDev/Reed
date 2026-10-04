@@ -5,12 +5,12 @@ Subject: [PATCH] Implement block placement update API
 
 
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index ad51146ef274106d542bf416cd47d0ebcd17e7c6..e8713e5d7a3d7f7dc70556193cadbbd84e208500 100644
+index f11ad0f2cdbb128dfa1f572903ad1b16b80c3e87..2527f37c40a9efbf0e47bb9bfe689f4933265c5e 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-@@ -3364,4 +3364,14 @@ public class CraftPlayer extends CraftHumanEntity implements Player, PluginMessa
-         super.knockback(strength, directionX, directionZ);
-         this.entity.hurtMarked = true;
+@@ -3402,4 +3402,14 @@ public class CraftPlayer extends CraftHumanEntity implements Player, PluginMessa
+     public PlayerPostEffects postEffects() {
+         return new PaperPlayerPostEffects(this.getHandle());
      }
 +
 +    @Override

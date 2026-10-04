@@ -32,7 +32,7 @@ class PlayerNoClipFeatureTest {
 
         final List<AbstractInsnNode> pistonReaction = instructions(playerClass, "getPistonPushReaction");
         assertTrue(calls(pistonReaction, "reed$isNoClipActive"));
-        assertTrue(readsField(pistonReaction, "IGNORE"));
+        assertTrue(readsField(pistonReaction, "IGNORE_ENTITY"));
     }
 
     @Test

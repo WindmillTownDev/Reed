@@ -1,8 +1,10 @@
+import io.papermc.paperweight.checkstyle.PaperCheckstyleExt
+import io.papermc.paperweight.checkstyle.tasks.MergeCheckstyleConfigs
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 
 plugins {
-    id("io.papermc.paperweight.patcher") version "2.0.0-beta.21"
+    id("io.papermc.paperweight.patcher") version "2.0.0-beta.24"
 }
 
 paperweight {
@@ -25,6 +27,16 @@ paperweight {
             patchesDir = file("reed-api/paper-patches")
             outputDir = file("paper-api")
         }
+        patchDir("paperCheckstyle") {
+            upstreamPath = "paper-checkstyle"
+            patchesDir = file("build-data/paper-checkstyle-patches")
+            outputDir = file("paper-checkstyle")
+        }
+        patchDir("paperCheckstyleConfig") {
+            upstreamPath = ".checkstyle"
+            patchesDir = file("build-data/paper-checkstyle-config-patches")
+            outputDir = file(".checkstyle")
+        }
     }
 }
 
@@ -35,6 +47,18 @@ subprojects {
     extensions.configure<JavaPluginExtension> {
         toolchain {
             languageVersion = JavaLanguageVersion.of(25)
+        }
+    }
+
+    if (name != "reed-server") {
+        apply(plugin = "io.papermc.paperweight.paper-checkstyle")
+        extensions.configure<PaperCheckstyleExt> {
+            typeUseAnnotationsFile.set(rootProject.layout.projectDirectory.file(".checkstyle/type_use_annotations.txt"))
+        }
+    }
+    if (name == "reed-api") {
+        tasks.withType<MergeCheckstyleConfigs>().configureEach {
+            overrideConfigFile.set(rootProject.layout.projectDirectory.file("paper-api/.checkstyle/checkstyle.xml"))
         }
     }
 }

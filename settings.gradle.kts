@@ -11,7 +11,7 @@ plugins {
 
 rootProject.name = "reed"
 
-for (name in listOf("reed-api", "reed-server")) {
+for (name in listOf("reed-api", "reed-server", "paper-checkstyle")) {
     include(name)
     file(name).mkdirs()
 }

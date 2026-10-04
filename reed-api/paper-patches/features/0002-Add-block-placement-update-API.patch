@@ -5,13 +5,13 @@ Subject: [PATCH] Add block placement update API
 
 
 diff --git a/src/main/java/org/bukkit/entity/Player.java b/src/main/java/org/bukkit/entity/Player.java
-index 7a719d31fbc7633a9bb87ea97338190ee3a6047a..f42599a9a24e1e723a8a3b7e11beece1f4c0cd1d 100644
+index 190313bc060d5f8440cec7c249ad1d2f1074f5bc..a09e7ce43bf6f4645a8c1ebe02ba0df9003424af 100644
 --- a/src/main/java/org/bukkit/entity/Player.java
 +++ b/src/main/java/org/bukkit/entity/Player.java
-@@ -4020,4 +4020,20 @@ public interface Player extends HumanEntity, Conversable, OfflinePlayer, PluginM
-     default ObjectContents asObjectContents() {
-         return this.getPlayerProfile().asObjectContents();
-     }
+@@ -4084,4 +4084,20 @@ public interface Player extends HumanEntity, Conversable, OfflinePlayer, PluginM
+      * @return the post-effects
+      */
+     PlayerPostEffects postEffects();
 +
 +    /**
 +     * Gets whether block updates are performed when this player places a block.

@@ -5,10 +5,10 @@ Subject: [PATCH] Add player no clip API
 
 
 diff --git a/src/main/java/org/bukkit/entity/Player.java b/src/main/java/org/bukkit/entity/Player.java
-index f42599a9a24e1e723a8a3b7e11beece1f4c0cd1d..7515e8779e923abfb49fc611730877cdc6b54431 100644
+index a09e7ce43bf6f4645a8c1ebe02ba0df9003424af..24386ad186823ad5a029820915e92f87ee5bc76f 100644
 --- a/src/main/java/org/bukkit/entity/Player.java
 +++ b/src/main/java/org/bukkit/entity/Player.java
-@@ -4036,4 +4036,21 @@ public interface Player extends HumanEntity, Conversable, OfflinePlayer, PluginM
+@@ -4100,4 +4100,21 @@ public interface Player extends HumanEntity, Conversable, OfflinePlayer, PluginM
       * @param doBlockPlacementUpdate whether block placement updates are performed
       */
      void setDoBlockPlacementUpdate(boolean doBlockPlacementUpdate);

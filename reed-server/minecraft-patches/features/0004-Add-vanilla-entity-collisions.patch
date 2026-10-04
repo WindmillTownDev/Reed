@@ -5,10 +5,10 @@ Subject: [PATCH] Add vanilla entity collisions
 
 
 diff --git a/net/minecraft/world/entity/Entity.java b/net/minecraft/world/entity/Entity.java
-index 1530810cdb74810e37e3e22ce4fcda4ee7511055..250bfd4473be96270e0acb75e27892116bae5d2d 100644
+index cf3619b6de23f32e9e5a81fbe287fb438ecfcabc..12819d7d13ee2d28e6c3f99b49c91d7442b0a9fb 100644
 --- a/net/minecraft/world/entity/Entity.java
 +++ b/net/minecraft/world/entity/Entity.java
-@@ -1616,6 +1616,12 @@ public abstract class Entity
+@@ -1654,6 +1654,12 @@ public abstract class Entity
      }
  
      private Vec3 collide(final Vec3 movement) {
@@ -21,14 +21,14 @@ index 1530810cdb74810e37e3e22ce4fcda4ee7511055..250bfd4473be96270e0acb75e2789211
          // Paper start - optimise collisions
          final boolean xZero = movement.x == 0.0;
          final boolean yZero = movement.y == 0.0;
-@@ -1688,6 +1694,69 @@ public abstract class Entity
+@@ -1731,6 +1737,69 @@ public abstract class Entity
          // Paper end - optimise collisions
      }
  
 +    // Reed start - vanilla entity collisions
 +    private Vec3 collideVanilla(final Vec3 movement) {
 +        AABB aabb = this.getBoundingBox();
-+        List<VoxelShape> entityColliders = this.level().getEntityCollisions(this, aabb.expandTowards(movement));
++        List<VoxelShape> entityColliders = this.level().getEntityCollisions(this, aabb.expandTowards(movement).expandTowards(0.0, this.maxUpStep(), 0.0));
 +        Vec3 movementStep = movement.lengthSqr() == 0.0
 +            ? movement
 +            : collideBoundingBoxVanilla(this, movement, aabb, this.level(), entityColliders);

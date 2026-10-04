@@ -33,7 +33,7 @@ class FallingBlockEntityTickingTest {
             "net/windmilltown/reed/configuration/ReedConfiguration",
             "get"
         );
-        final int setBlock = methodIndex(instructions, "net/minecraft/world/level/Level", "setBlock");
+        final int setBlock = methodIndex(instructions, "net/minecraft/world/level/Level", "setBlockAndUpdate");
         final int addEntity = methodIndex(instructions, "net/minecraft/world/level/Level", "addFreshEntity");
 
         assertEquals(1, methodCount(instructions, "org/bukkit/craftbukkit/event/CraftEventFactory", "callEntityChangeBlockEvent"));

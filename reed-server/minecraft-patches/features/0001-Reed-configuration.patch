@@ -5,10 +5,10 @@ Subject: [PATCH] Reed configuration
 
 
 diff --git a/net/minecraft/server/MinecraftServer.java b/net/minecraft/server/MinecraftServer.java
-index 68151ce05e7009f28dda0470c744920cbd5f4a27..a7a276024d1aa70ac6b85f6fe4df08ec6aad52bb 100644
+index c3bf41af0273e902f881cc070fcef6dd64abb063..e66125cd7cec33063119211c90ff5bfe262ddf5d 100644
 --- a/net/minecraft/server/MinecraftServer.java
 +++ b/net/minecraft/server/MinecraftServer.java
-@@ -332,6 +332,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -327,6 +327,7 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
      public volatile boolean abnormalExit; // Paper - Improved watchdog support
      public volatile Thread shutdownThread; // Paper - Improved watchdog support
      public final io.papermc.paper.configuration.PaperConfigurations paperConfigurations; // Paper - add paper configuration files
@@ -16,7 +16,7 @@ index 68151ce05e7009f28dda0470c744920cbd5f4a27..a7a276024d1aa70ac6b85f6fe4df08ec
      public boolean isIteratingOverLevels = false; // Paper - Throw exception on world create while being ticked
      private final Set<String> pluginsBlockingSleep = new java.util.HashSet<>(); // Paper - API to allow/disallow tick sleeping
      public static final long SERVER_INIT = System.nanoTime(); // Paper - Lag compensation
-@@ -576,6 +577,11 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -569,6 +570,11 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
          Runtime.getRuntime().addShutdownHook(new org.bukkit.craftbukkit.util.ServerShutdownThread(this));
          // CraftBukkit end
          this.paperConfigurations = services.paper().configurations(); // Paper - add paper configuration files
@@ -29,7 +29,7 @@ index 68151ce05e7009f28dda0470c744920cbd5f4a27..a7a276024d1aa70ac6b85f6fe4df08ec
  
      protected abstract boolean initServer() throws IOException;
 diff --git a/net/minecraft/server/dedicated/DedicatedServer.java b/net/minecraft/server/dedicated/DedicatedServer.java
-index 0b6d7f99edde802cb464baa5a4b2b4a4dcce684a..b62a6b40e781f8c3224612721ca14b1ce5618a60 100644
+index 68675926ee85f738b3693a76fc29b80b80c717ed..0306827bbb585d79a53558f6a4d8c6bce41b6207 100644
 --- a/net/minecraft/server/dedicated/DedicatedServer.java
 +++ b/net/minecraft/server/dedicated/DedicatedServer.java
 @@ -238,6 +238,7 @@ public class DedicatedServer extends MinecraftServer implements ServerInterface

@@ -12,6 +12,8 @@ build
 /reed-api/build.gradle.kts
 /paper-api
 /paper-api-generator
+/paper-checkstyle
+/.checkstyle
 
 .idea/
 

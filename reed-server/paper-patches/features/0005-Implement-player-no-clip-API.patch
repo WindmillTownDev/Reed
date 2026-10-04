@@ -5,10 +5,10 @@ Subject: [PATCH] Implement player no clip API
 
 
 diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-index e8713e5d7a3d7f7dc70556193cadbbd84e208500..b26dcf78bc0da85245c9c0e79a5d08c28b0a5b3f 100644
+index 2527f37c40a9efbf0e47bb9bfe689f4933265c5e..b1bcf1b3717e61ba37de8c7413162495fd755d5b 100644
 --- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
 +++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
-@@ -2431,6 +2431,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player, PluginMessa
+@@ -2439,6 +2439,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player, PluginMessa
          }
  
          this.getHandle().getAbilities().flying = value;
@@ -16,7 +16,7 @@ index e8713e5d7a3d7f7dc70556193cadbbd84e208500..b26dcf78bc0da85245c9c0e79a5d08c2
          if (needsUpdate) this.getHandle().onUpdateAbilities(); // Paper - Only refresh abilities if needed
      }
  
-@@ -3374,4 +3375,14 @@ public class CraftPlayer extends CraftHumanEntity implements Player, PluginMessa
+@@ -3412,4 +3413,14 @@ public class CraftPlayer extends CraftHumanEntity implements Player, PluginMessa
      public void setDoBlockPlacementUpdate(final boolean doBlockPlacementUpdate) {
          this.getHandle().setDoBlockPlacementUpdate(doBlockPlacementUpdate);
      }

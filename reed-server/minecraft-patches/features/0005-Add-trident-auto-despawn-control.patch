@@ -5,7 +5,7 @@ Subject: [PATCH] Add trident auto despawn control
 
 
 diff --git a/net/minecraft/world/entity/projectile/arrow/ThrownTrident.java b/net/minecraft/world/entity/projectile/arrow/ThrownTrident.java
-index 95613ffd7434ff803c7961371b9e75257f5a128f..1bc342990b2dd8676cd44c4521de2222e335de9b 100644
+index 409fd5afe319cad4f1e92d9da080f000ff28c951..b73d995b925c606669f263fefc6bf0691903feb5 100644
 --- a/net/minecraft/world/entity/projectile/arrow/ThrownTrident.java
 +++ b/net/minecraft/world/entity/projectile/arrow/ThrownTrident.java
 @@ -29,6 +29,10 @@ import net.minecraft.world.phys.Vec3;
@@ -19,7 +19,7 @@ index 95613ffd7434ff803c7961371b9e75257f5a128f..1bc342990b2dd8676cd44c4521de2222
      private static final EntityDataAccessor<Byte> ID_LOYALTY = SynchedEntityData.defineId(ThrownTrident.class, EntityDataSerializers.BYTE);
      private static final EntityDataAccessor<Boolean> ID_FOIL = SynchedEntityData.defineId(ThrownTrident.class, EntityDataSerializers.BOOLEAN);
      private static final float WATER_INERTIA = 0.99F;
-@@ -230,8 +234,38 @@ public class ThrownTrident extends AbstractArrow {
+@@ -228,8 +232,38 @@ public class ThrownTrident extends AbstractArrow {
              : 0;
      }
  

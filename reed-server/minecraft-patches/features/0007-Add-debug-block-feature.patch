@@ -37,10 +37,10 @@ index 408cb996fc8ff77785da8919f19baff2cf4bd789..9973cce92779d5ec3c1810dca75ee69f
              // Paper end - detailed watchdog information
          }
 diff --git a/net/minecraft/server/MinecraftServer.java b/net/minecraft/server/MinecraftServer.java
-index a7a276024d1aa70ac6b85f6fe4df08ec6aad52bb..792919f00bc703f54d4a830f8437f38c88a7feff 100644
+index e66125cd7cec33063119211c90ff5bfe262ddf5d..313c9a420bb709a420bc2a8da03df92330c1ff38 100644
 --- a/net/minecraft/server/MinecraftServer.java
 +++ b/net/minecraft/server/MinecraftServer.java
-@@ -1614,7 +1614,17 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1595,7 +1595,17 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
                  }
                  // Paper end - avoid issues with certain tasks not processing during sleep
                  this.server.spark.executeMainThreadTasks(); // Paper - spark
@@ -59,7 +59,7 @@ index a7a276024d1aa70ac6b85f6fe4df08ec6aad52bb..792919f00bc703f54d4a830f8437f38c
                  this.server.spark.tickEnd(((double)(System.nanoTime() - this.currentTickStart) / 1000000D)); // Paper - spark
                  return;
              }
-@@ -1841,7 +1851,15 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+@@ -1822,7 +1832,15 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
          this.isIteratingOverLevels = false; // Paper - Throw exception on world create while being ticked
  
          profiler.popPush("connection");
@@ -77,10 +77,10 @@ index a7a276024d1aa70ac6b85f6fe4df08ec6aad52bb..792919f00bc703f54d4a830f8437f38c
          this.playerList.tick();
          profiler.popPush("debugSubscribers");
 diff --git a/net/minecraft/server/level/ServerLevel.java b/net/minecraft/server/level/ServerLevel.java
-index cf92ce7d79cc9edf380073581b61b59004ee623a..b550a6e890af26029b6b30d5b9869dc35c341b90 100644
+index 3702da33ea6645144d81a449a208b3b007620020..a83dd6fb1d445ec15871f066a2561288e9d811e9 100644
 --- a/net/minecraft/server/level/ServerLevel.java
 +++ b/net/minecraft/server/level/ServerLevel.java
-@@ -844,9 +844,29 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
+@@ -851,9 +851,29 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
          if (!this.isDebug() && runs) {
              long tick = this.getGameTime();
              profiler.push("blockTicks");
@@ -112,7 +112,7 @@ index cf92ce7d79cc9edf380073581b61b59004ee623a..b550a6e890af26029b6b30d5b9869dc3
              profiler.pop();
          }
  
-@@ -859,7 +879,17 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
+@@ -866,7 +886,17 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
          this.getChunkSource().tick(haveTime, true);
          profiler.popPush("blockEvents");
          if (runs) {
@@ -131,7 +131,7 @@ index cf92ce7d79cc9edf380073581b61b59004ee623a..b550a6e890af26029b6b30d5b9869dc3
          }
  
          this.handlingTick = false;
-@@ -875,6 +905,12 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
+@@ -882,6 +912,12 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
  
          if (this.emptyTime < 300) {
              profiler.push("entities");
@@ -144,7 +144,7 @@ index cf92ce7d79cc9edf380073581b61b59004ee623a..b550a6e890af26029b6b30d5b9869dc3
              if (this.dragonFight != null && runs) {
                  profiler.push("dragonFight");
                  this.dragonFight.tick();
-@@ -908,9 +944,23 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
+@@ -915,9 +951,23 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
                          }
                      }
                  );
@@ -169,7 +169,7 @@ index cf92ce7d79cc9edf380073581b61b59004ee623a..b550a6e890af26029b6b30d5b9869dc3
              profiler.pop();
              } // Paper - option to disable ticking
              this.spigotConfig.currentPrimedTnt = 0; // Spigot
-@@ -1925,6 +1975,17 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
+@@ -1929,6 +1979,17 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
          this.neighborUpdater.neighborChanged(pos, changedBlock, orientation);
      }
  
@@ -187,7 +187,7 @@ index cf92ce7d79cc9edf380073581b61b59004ee623a..b550a6e890af26029b6b30d5b9869dc3
      @Override
      public void neighborChanged(
          final BlockState state, final BlockPos pos, final Block changedBlock, final @Nullable Orientation orientation, final boolean movedByPiston
-@@ -1932,6 +1993,19 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
+@@ -1936,6 +1997,19 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
          this.neighborUpdater.neighborChanged(state, pos, changedBlock, orientation, movedByPiston);
      }
  
@@ -205,13 +205,13 @@ index cf92ce7d79cc9edf380073581b61b59004ee623a..b550a6e890af26029b6b30d5b9869dc3
 +    // Reed end - source-aware neighbor change dispatch
 +
      @Override
-     public void broadcastEntityEvent(final Entity entity, final byte event) {
+     public void broadcastEntityEvent(final Entity entity, final @EntityEvent.Value byte event) {
          this.getChunkSource().sendToTrackingPlayersAndSelf(entity, new ClientboundEntityEventPacket(entity, event));
 diff --git a/net/minecraft/server/level/ServerPlayerGameMode.java b/net/minecraft/server/level/ServerPlayerGameMode.java
-index 27bdb82793250b33b457fe027c003948000857c9..1642bdc4ae02efdcd6c9930a6b8a300952178a3f 100644
+index 81487e9840845de76f58e83cc57b173b5945bab4..9d6c1cfc6b0a7b0304efd973f409642f7c89c55f 100644
 --- a/net/minecraft/server/level/ServerPlayerGameMode.java
 +++ b/net/minecraft/server/level/ServerPlayerGameMode.java
-@@ -380,7 +380,11 @@ public class ServerPlayerGameMode {
+@@ -411,7 +411,11 @@ public class ServerPlayerGameMode {
          if (state.isAir()) return false; // CraftBukkit - A plugin set block to air without cancelling
          BlockEntity blockEntity = this.level.getBlockEntity(pos);
          Block block = state.getBlock();
@@ -242,10 +242,10 @@ index 6bcd75684bd0df96a32d16d6f680af67512016ca..1af5ed64aa9c5a4ce8236420536122a4
      }
  }
 diff --git a/net/minecraft/world/level/Level.java b/net/minecraft/world/level/Level.java
-index 4af49ee40b89e9db922aeebaa124b0ad9ef055e1..e6a8b167c56d7572df5b80103bce68a4a7bb61e4 100644
+index 66ea071c44e932d2827203c4007301689d9d867b..6cc088a6b7cd5f127b48e1800177622412e65813 100644
 --- a/net/minecraft/world/level/Level.java
 +++ b/net/minecraft/world/level/Level.java
-@@ -174,6 +174,9 @@ public abstract class Level implements LevelAccessor, AutoCloseable, ca.spottedl
+@@ -172,6 +172,9 @@ public abstract class Level implements LevelAccessor, AutoCloseable, ca.spottedl
      // Paper end - add paper world config
  
      public static @Nullable BlockPos lastPhysicsProblem; // Spigot
@@ -255,7 +255,7 @@ index 4af49ee40b89e9db922aeebaa124b0ad9ef055e1..e6a8b167c56d7572df5b80103bce68a4
      public final Map<ServerExplosion.CacheKey, Float> explosionDensityCache = new java.util.HashMap<>(); // Paper - Optimize explosions
      public java.util.ArrayDeque<net.minecraft.world.level.block.RedstoneTorchBlock.Toggle> redstoneUpdateInfos; // Paper - Faster redstone torch rapid clock removal; Move from Map in BlockRedstoneTorch to here
  
-@@ -1278,11 +1281,43 @@ public abstract class Level implements LevelAccessor, AutoCloseable, ca.spottedl
+@@ -1268,11 +1271,43 @@ public abstract class Level implements LevelAccessor, AutoCloseable, ca.spottedl
      public void neighborChanged(final BlockPos pos, final Block changedBlock, final @Nullable Orientation orientation) {
      }
  
@@ -300,10 +300,10 @@ index 4af49ee40b89e9db922aeebaa124b0ad9ef055e1..e6a8b167c56d7572df5b80103bce68a4
      public void neighborShapeChanged(
          final Direction direction,
 diff --git a/net/minecraft/world/level/block/DiodeBlock.java b/net/minecraft/world/level/block/DiodeBlock.java
-index 2339099e05af80b234e64778822b012cc6318157..9472883084f3f6e2d2c1a633bc3b436dadccc5fc 100644
+index fc007b164c7fc4e9608d02c64c5cd4dc6934b4e2..c71547afc9ee81674ba470b46ae9f81be9f97a20 100644
 --- a/net/minecraft/world/level/block/DiodeBlock.java
 +++ b/net/minecraft/world/level/block/DiodeBlock.java
-@@ -192,7 +192,7 @@ public abstract class DiodeBlock extends HorizontalDirectionalBlock {
+@@ -188,7 +188,7 @@ public abstract class DiodeBlock extends HorizontalDirectionalBlock {
          Direction direction = state.getValue(FACING);
          BlockPos oppositePos = pos.relative(direction.getOpposite());
          Orientation orientation = ExperimentalRedstoneUtils.initialOrientation(level, direction.getOpposite(), Direction.UP);
@@ -313,10 +313,10 @@ index 2339099e05af80b234e64778822b012cc6318157..9472883084f3f6e2d2c1a633bc3b436d
      }
  
 diff --git a/net/minecraft/world/level/block/JigsawBlock.java b/net/minecraft/world/level/block/JigsawBlock.java
-index d02f32efccd4ed50fc1f14e531fc3ce15a1461c4..b728760b633ca0aea0c77d132598ea313894977a 100644
+index 0b632d4296e894002a23669518a5d6958214ccae..059a7b0c1fe198ef12a51cb351d88ad8a72629ca 100644
 --- a/net/minecraft/world/level/block/JigsawBlock.java
 +++ b/net/minecraft/world/level/block/JigsawBlock.java
-@@ -4,10 +4,15 @@ import com.mojang.serialization.MapCodec;
+@@ -3,10 +3,15 @@ package net.minecraft.world.level.block;
  import net.minecraft.core.BlockPos;
  import net.minecraft.core.Direction;
  import net.minecraft.core.FrontAndTop;
@@ -332,7 +332,7 @@ index d02f32efccd4ed50fc1f14e531fc3ce15a1461c4..b728760b633ca0aea0c77d132598ea31
  import net.minecraft.world.level.block.entity.BlockEntity;
  import net.minecraft.world.level.block.entity.JigsawBlockEntity;
  import net.minecraft.world.level.block.state.BlockBehaviour;
-@@ -16,7 +21,9 @@ import net.minecraft.world.level.block.state.StateDefinition;
+@@ -15,7 +20,9 @@ import net.minecraft.world.level.block.state.StateDefinition;
  import net.minecraft.world.level.block.state.properties.BlockStateProperties;
  import net.minecraft.world.level.block.state.properties.EnumProperty;
  import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
@@ -341,8 +341,8 @@ index d02f32efccd4ed50fc1f14e531fc3ce15a1461c4..b728760b633ca0aea0c77d132598ea31
 +import org.jspecify.annotations.Nullable;
  
  public class JigsawBlock extends Block implements EntityBlock, GameMasterBlock {
-     public static final MapCodec<JigsawBlock> CODEC = simpleCodec(JigsawBlock::new);
-@@ -49,7 +56,11 @@ public class JigsawBlock extends Block implements EntityBlock, GameMasterBlock {
+     public static final EnumProperty<FrontAndTop> ORIENTATION = BlockStateProperties.ORIENTATION;
+@@ -42,7 +49,11 @@ public class JigsawBlock extends Block implements EntityBlock, GameMasterBlock {
  
      @Override
      public BlockState getStateForPlacement(final BlockPlaceContext context) {
@@ -355,7 +355,7 @@ index d02f32efccd4ed50fc1f14e531fc3ce15a1461c4..b728760b633ca0aea0c77d132598ea31
          Direction top;
          if (front.getAxis() == Direction.Axis.Y) {
              top = context.getHorizontalDirection().getOpposite();
-@@ -65,10 +76,44 @@ public class JigsawBlock extends Block implements EntityBlock, GameMasterBlock {
+@@ -58,10 +69,44 @@ public class JigsawBlock extends Block implements EntityBlock, GameMasterBlock {
          return new JigsawBlockEntity(worldPosition, blockState);
      }
  
@@ -400,7 +400,7 @@ index d02f32efccd4ed50fc1f14e531fc3ce15a1461c4..b728760b633ca0aea0c77d132598ea31
          if (level.getBlockEntity(pos) instanceof JigsawBlockEntity jigsawBlockEntity && player.canUseGameMasterBlocks()) {
              player.openJigsawBlock(jigsawBlockEntity);
              return InteractionResult.SUCCESS;
-@@ -94,4 +139,133 @@ public class JigsawBlock extends Block implements EntityBlock, GameMasterBlock {
+@@ -89,4 +134,133 @@ public class JigsawBlock extends Block implements EntityBlock, GameMasterBlock {
      public static Direction getTopFacing(final BlockState state) {
          return state.getValue(ORIENTATION).top();
      }
@@ -535,10 +535,10 @@ index d02f32efccd4ed50fc1f14e531fc3ce15a1461c4..b728760b633ca0aea0c77d132598ea31
 +    // Reed end - debug block redstone behavior
  }
 diff --git a/net/minecraft/world/level/block/ObserverBlock.java b/net/minecraft/world/level/block/ObserverBlock.java
-index 680a357db27407e2dc21c615fadaf9754421c361..9e68649fdcfa8cb3107304a76238fc34da958b73 100644
+index 8e7e2b197c19bd5abdb3b2f5133927f52ad5cfaf..8e67ae0dd79d6edfa920b72f4db12ac642aae21e 100644
 --- a/net/minecraft/world/level/block/ObserverBlock.java
 +++ b/net/minecraft/world/level/block/ObserverBlock.java
-@@ -98,7 +98,7 @@ public class ObserverBlock extends DirectionalBlock {
+@@ -92,7 +92,7 @@ public class ObserverBlock extends DirectionalBlock {
          Direction direction = state.getValue(FACING);
          BlockPos oppositePos = pos.relative(direction.getOpposite());
          Orientation orientation = ExperimentalRedstoneUtils.initialOrientation(level, direction.getOpposite(), null);
@@ -745,10 +745,10 @@ index bcad783f3fc82d9bae6f7aa8279ed07e05147b94..bd6deb45a52f9f9ef9af462c6fc68afc
          ROLLABLE("rollable"),
          ALIGNED("aligned");
 diff --git a/net/minecraft/world/level/block/piston/PistonHeadBlock.java b/net/minecraft/world/level/block/piston/PistonHeadBlock.java
-index f8caa0b3c21766dbad73c524c1680346e4257188..feff80fa6fbd82eb372de631a67aab4889fcb385 100644
+index c00cbfa4d0238ae42a91023a29d674ae98de6400..9fa7c8767157d76efdda2312276c0e76baad2658 100644
 --- a/net/minecraft/world/level/block/piston/PistonHeadBlock.java
 +++ b/net/minecraft/world/level/block/piston/PistonHeadBlock.java
-@@ -116,7 +116,8 @@ public class PistonHeadBlock extends DirectionalBlock {
+@@ -109,7 +109,8 @@ public class PistonHeadBlock extends DirectionalBlock {
              level.neighborChanged(
                  pos.relative(state.getValue(FACING).getOpposite()),
                  block,
@@ -844,7 +844,7 @@ index 1c7862ae4eaeb4d83e0fb423c86489f534e92be5..6f063b971b1dab1ec509759d24c66858
          }
  
 diff --git a/net/minecraft/world/level/redstone/ExperimentalRedstoneWireEvaluator.java b/net/minecraft/world/level/redstone/ExperimentalRedstoneWireEvaluator.java
-index 7bbfa84ed3a148d9307d3637c99f5b1f7abd96f3..104d849cb8569b002d14b19dc63bfbbc711cae77 100644
+index 7f2dfe7258de5e738e7651c1a4afa6546fd62139..2ae2c96a7f86f56c04123cf53608e6a0ae026db0 100644
 --- a/net/minecraft/world/level/redstone/ExperimentalRedstoneWireEvaluator.java
 +++ b/net/minecraft/world/level/redstone/ExperimentalRedstoneWireEvaluator.java
 @@ -75,11 +75,16 @@ public class ExperimentalRedstoneWireEvaluator extends RedstoneWireEvaluator {

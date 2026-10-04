@@ -5,10 +5,10 @@ Subject: [PATCH] Add no-update block placement
 
 
 diff --git a/net/minecraft/server/level/ServerLevel.java b/net/minecraft/server/level/ServerLevel.java
-index 02bd74f2ed7f34233e3543c8e70ae754adb8aa25..cf92ce7d79cc9edf380073581b61b59004ee623a 100644
+index 8389d812b2d80a122fd1945b3182c08cdeda7d1c..3702da33ea6645144d81a449a208b3b007620020 100644
 --- a/net/minecraft/server/level/ServerLevel.java
 +++ b/net/minecraft/server/level/ServerLevel.java
-@@ -2038,6 +2038,7 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
+@@ -2047,6 +2047,7 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
  
      @Override
      public void blockEvent(final BlockPos pos, final Block block, final int b0, final int b1) {
@@ -17,10 +17,10 @@ index 02bd74f2ed7f34233e3543c8e70ae754adb8aa25..cf92ce7d79cc9edf380073581b61b590
      }
  
 diff --git a/net/minecraft/server/level/ServerPlayer.java b/net/minecraft/server/level/ServerPlayer.java
-index c063fa617ea79b758b9c4ef0456889a91e341ad4..a221e1fd89b183a05b014dc1b19b8e24c2776fbb 100644
+index 23b3a82ab3e1c6abc85000d9285470cb12300a6b..97068fd36e2667651db210f1204c4cf573f9dc27 100644
 --- a/net/minecraft/server/level/ServerPlayer.java
 +++ b/net/minecraft/server/level/ServerPlayer.java
-@@ -209,6 +209,7 @@ import org.slf4j.Logger;
+@@ -213,6 +213,7 @@ import org.slf4j.Logger;
  public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patches.chunk_system.player.ChunkSystemServerPlayer { // Paper - rewrite chunk system
      private static final Logger LOGGER = LogUtils.getLogger();
      public long lastSave = MinecraftServer.currentTick; // Paper - Incremental chunk and player saving
@@ -28,7 +28,7 @@ index c063fa617ea79b758b9c4ef0456889a91e341ad4..a221e1fd89b183a05b014dc1b19b8e24
      private static final int NEUTRAL_MOB_DEATH_NOTIFICATION_RADII_XZ = 32;
      private static final int NEUTRAL_MOB_DEATH_NOTIFICATION_RADII_Y = 10;
      private static final int FLY_STAT_RECORDING_SPEED = 25;
-@@ -491,6 +492,16 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+@@ -496,6 +497,16 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
          // CraftBukkit end
      }
  
@@ -46,10 +46,10 @@ index c063fa617ea79b758b9c4ef0456889a91e341ad4..a221e1fd89b183a05b014dc1b19b8e24
      public BlockPos adjustSpawnLocation(final ServerLevel level, final BlockPos spawnSuggestion) {
          CompletableFuture<Vec3> future = PlayerSpawnFinder.findSpawn(level, spawnSuggestion);
 diff --git a/net/minecraft/world/item/BlockItem.java b/net/minecraft/world/item/BlockItem.java
-index b94c4f0a6908a37d8a07dba6ff3ece7193aca1b5..a1ece2458318a91e85745f3830ac043f3fbfa5b3 100644
+index 68f1e9483b93ef071877a4c99f4bd14e0d363145..5c6d46965f9152cf472f87b116e416ac089edbdc 100644
 --- a/net/minecraft/world/item/BlockItem.java
 +++ b/net/minecraft/world/item/BlockItem.java
-@@ -65,34 +65,49 @@ public class BlockItem extends Item {
+@@ -74,33 +74,48 @@ public class BlockItem extends Item {
              return InteractionResult.FAIL;
          }
  
@@ -64,11 +64,10 @@ index b94c4f0a6908a37d8a07dba6ff3ece7193aca1b5..a1ece2458318a91e85745f3830ac043f
 -        BlockState placedState = level.getBlockState(pos);
          java.util.function.UnaryOperator<InteractionResult.PaperSuccessContext> context = c -> c.placedBlockAt(pos.immutable()); // Paper - track placed block position from block item
 -        if (placedState.is(placementState.getBlock())) {
--            placedState = this.updateBlockStateFromTag(pos, level, itemStack, placedState);
+-            placedState = updateBlockStateFromTag(pos, level, itemStack, placedState);
 -            // Paper start - Reset placed block on exception
 -            try {
--                boolean updatedBlockEntity = this.updateCustomBlockEntityTag(pos, level, player, itemStack, placedState);
--                context = context.andThen(c -> c.updatedBlockEntity(updatedBlockEntity))::apply; // track whether the block entity got updated or not
+-                updateCustomBlockEntityTag(level, player, pos, itemStack);
 -                updateBlockEntityComponents(level, pos, itemStack);
 -            } catch (Exception ex) {
 -                ((org.bukkit.craftbukkit.block.CraftBlockState) previousState).revertPlace(false);
@@ -90,11 +89,10 @@ index b94c4f0a6908a37d8a07dba6ff3ece7193aca1b5..a1ece2458318a91e85745f3830ac043f
 +
 +            placedState = level.getBlockState(pos);
 +            if (placedState.is(placementState.getBlock())) {
-+                placedState = this.updateBlockStateFromTag(pos, level, itemStack, placedState);
++                placedState = updateBlockStateFromTag(pos, level, itemStack, placedState);
 +                // Paper start - Reset placed block on exception
 +                try {
-+                    boolean updatedBlockEntity = this.updateCustomBlockEntityTag(pos, level, player, itemStack, placedState);
-+                    context = context.andThen(c -> c.updatedBlockEntity(updatedBlockEntity))::apply; // track whether the block entity got updated or not
++                    updateCustomBlockEntityTag(level, player, pos, itemStack);
 +                    updateBlockEntityComponents(level, pos, itemStack);
 +                } catch (Exception ex) {
 +                    ((org.bukkit.craftbukkit.block.CraftBlockState) previousState).revertPlace(false);
@@ -121,45 +119,45 @@ index b94c4f0a6908a37d8a07dba6ff3ece7193aca1b5..a1ece2458318a91e85745f3830ac043f
              if (player != null && (this instanceof PlaceOnWaterBlockItem || this instanceof SolidBucketItem)) {
                  org.bukkit.event.block.BlockPlaceEvent placeEvent = org.bukkit.craftbukkit.event.CraftEventFactory.callBlockPlaceEvent((net.minecraft.server.level.ServerLevel) level, player, updatedPlaceContext.getHand(), previousState, pos);
 diff --git a/net/minecraft/world/item/ItemStack.java b/net/minecraft/world/item/ItemStack.java
-index 44a7590558fa73fb570f76ba7a4e7db1415d08f7..b95cf61fb8d90ea9667541ca6b30564996b414bb 100644
+index 00861318771cd184c9f75a9a036deee9ec2ba310..e7383e5c2fe801d4bbee871c0ef926705681f2c0 100644
 --- a/net/minecraft/world/item/ItemStack.java
 +++ b/net/minecraft/world/item/ItemStack.java
-@@ -473,20 +473,28 @@ public final class ItemStack implements DataComponentHolder, ItemInstance {
-                     BlockPos newPos = snapshot.getPosition();
-                     net.minecraft.world.level.block.state.BlockState block = level.getBlockState(newPos);
+@@ -474,20 +474,28 @@ public final class ItemStack implements DataComponentHolder, ItemInstance {
+                         BlockPos newPos = snapshot.getPosition();
+                         net.minecraft.world.level.block.state.BlockState block = level.getBlockState(newPos);
  
--                    if (!(block.getBlock() instanceof net.minecraft.world.level.block.BaseEntityBlock)) { // Containers get placed automatically
+-                        if (!(block.getBlock() instanceof net.minecraft.world.level.block.BaseEntityBlock)) { // Containers get placed automatically
++                        // Reed start - suppress deferred block placement updates
++                        if ((snapshot.getFlags() & net.minecraft.world.level.block.Block.UPDATE_SKIP_ON_PLACE) == 0
++                            && !(block.getBlock() instanceof net.minecraft.world.level.block.BaseEntityBlock)) { // Containers get placed automatically
+                             block.onPlace(level, newPos, oldBlock, true, context);
+                         }
++                        // Reed end - suppress deferred block placement updates
+ 
+                         level.notifyAndUpdatePhysics(newPos, null, oldBlock, block, level.getBlockState(newPos), snapshot.getFlags(), net.minecraft.world.level.block.Block.UPDATE_LIMIT); // send null chunk as chunk.k() returns false by this point
+                     }
+ 
+                     BlockPos placedPos = success.paperSuccessContext().placedPos();
+-                    if (usedItem == Items.WITHER_SKELETON_SKULL && placedPos != null) { // Special case skulls to allow wither spawns to be cancelled
 +                    // Reed start - suppress deferred block placement updates
-+                    if ((snapshot.getFlags() & net.minecraft.world.level.block.Block.UPDATE_SKIP_ON_PLACE) == 0
-+                        && !(block.getBlock() instanceof net.minecraft.world.level.block.BaseEntityBlock)) { // Containers get placed automatically
-                         block.onPlace(level, newPos, oldBlock, true, context);
++                    if (usedItem == Items.WITHER_SKELETON_SKULL
++                        && placedPos != null
++                        && capturedBlockStates.stream().noneMatch(snapshot -> snapshot.getPosition().equals(placedPos)
++                            && (snapshot.getFlags() & net.minecraft.world.level.block.Block.UPDATE_SKIP_ON_PLACE) != 0)) { // Special case skulls to allow wither spawns to be cancelled
+                         net.minecraft.world.level.block.entity.BlockEntity blockEntity = level.getBlockEntity(placedPos);
+                         if (blockEntity instanceof net.minecraft.world.level.block.entity.SkullBlockEntity placedSkull) {
+                             net.minecraft.world.level.block.WitherSkullBlock.checkSpawn(level, placedPos, placedSkull);
+                         }
                      }
 +                    // Reed end - suppress deferred block placement updates
  
-                     level.notifyAndUpdatePhysics(newPos, null, oldBlock, block, level.getBlockState(newPos), snapshot.getFlags(), net.minecraft.world.level.block.Block.UPDATE_LIMIT); // send null chunk as chunk.k() returns false by this point
-                 }
- 
-                 BlockPos placedPos = success.paperSuccessContext().placedPos();
--                if (usedItem == Items.WITHER_SKELETON_SKULL && placedPos != null) { // Special case skulls to allow wither spawns to be cancelled
-+                // Reed start - suppress deferred block placement updates
-+                if (usedItem == Items.WITHER_SKELETON_SKULL
-+                    && placedPos != null
-+                    && capturedBlockStates.stream().noneMatch(snapshot -> snapshot.getPosition().equals(placedPos)
-+                        && (snapshot.getFlags() & net.minecraft.world.level.block.Block.UPDATE_SKIP_ON_PLACE) != 0)) { // Special case skulls to allow wither spawns to be cancelled
-                     net.minecraft.world.level.block.entity.BlockEntity blockEntity = level.getBlockEntity(placedPos);
-                     if (blockEntity instanceof net.minecraft.world.level.block.entity.SkullBlockEntity placedSkull) {
-                         net.minecraft.world.level.block.WitherSkullBlock.checkSpawn(level, placedPos, placedSkull);
-                     }
-                 }
-+                // Reed end - suppress deferred block placement updates
- 
-                 // SPIGOT-4678
-                 if (usedItem instanceof SignItem && placedPos != null && !success.paperSuccessContext().updatedBlockEntity()) {
+                     if (placedPos != null) {
+                         if (level.getBlockState(placedPos).getBlock() instanceof net.minecraft.world.level.block.SignBlock sign
 diff --git a/net/minecraft/world/level/Level.java b/net/minecraft/world/level/Level.java
-index 9286d9bcf3ec4069e77d3133f3d7bf29b2370c5a..4af49ee40b89e9db922aeebaa124b0ad9ef055e1 100644
+index 21878bd770f6c0bc10dd0a67be5bd94d7e16f741..66ea071c44e932d2827203c4007301689d9d867b 100644
 --- a/net/minecraft/world/level/Level.java
 +++ b/net/minecraft/world/level/Level.java
-@@ -152,6 +152,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable, ca.spottedl
+@@ -150,6 +150,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable, ca.spottedl
  
      public boolean captureBlockStates = false;
      public boolean captureTreeGeneration = false;
@@ -167,7 +165,7 @@ index 9286d9bcf3ec4069e77d3133f3d7bf29b2370c5a..4af49ee40b89e9db922aeebaa124b0ad
      public Map<BlockPos, org.bukkit.craftbukkit.block.CraftBlockState> capturedBlockStates = new java.util.LinkedHashMap<>(); // Paper
      public Map<BlockPos, BlockEntity> capturedBlockEntities = new java.util.LinkedHashMap<>(); // Paper - Retain block place order when capturing blockstates
      @Nullable
-@@ -1053,7 +1054,16 @@ public abstract class Level implements LevelAccessor, AutoCloseable, ca.spottedl
+@@ -1046,7 +1047,16 @@ public abstract class Level implements LevelAccessor, AutoCloseable, ca.spottedl
      }
  
      @Override
@@ -215,10 +213,10 @@ index 28e8e600ea19ac2a52035779781e86e112a36497..5de37e280e2c5f333548a9bf9443fc60
      }
  }
 diff --git a/net/minecraft/world/level/block/CommandBlock.java b/net/minecraft/world/level/block/CommandBlock.java
-index 8cf4410a41ccd2f7e253e5400ca679a498aea4db..5409ee6ec57ab10e90b82b51d671c34c41d2ba2a 100644
+index 5cdf7439fd303e2d0ada2b773551bebde693944b..31497c572e9f969cba80e202388a9873b68fd234 100644
 --- a/net/minecraft/world/level/block/CommandBlock.java
 +++ b/net/minecraft/world/level/block/CommandBlock.java
-@@ -161,6 +161,7 @@ public class CommandBlock extends BaseEntityBlock implements GameMasterBlock {
+@@ -150,6 +150,7 @@ public class CommandBlock extends BaseEntityBlock implements GameMasterBlock {
                      commandBlockEntity.setAutomatic(this.automatic);
                  }
  
@@ -227,10 +225,10 @@ index 8cf4410a41ccd2f7e253e5400ca679a498aea4db..5409ee6ec57ab10e90b82b51d671c34c
                  this.setPoweredAndUpdate(level, pos, commandBlockEntity, hasNeighborSignal);
              }
 diff --git a/net/minecraft/world/level/block/TripWireHookBlock.java b/net/minecraft/world/level/block/TripWireHookBlock.java
-index 9d08ce61f964bb3115c708091549a233dabcf0e3..63a4879e4388ffb4c8d17b8f0c9e5d7385f807da 100644
+index b9090b80f9489431b11da29acf1f499e94c022ea..db1a45402c8fc1255e1837f51b36da8bb421d335 100644
 --- a/net/minecraft/world/level/block/TripWireHookBlock.java
 +++ b/net/minecraft/world/level/block/TripWireHookBlock.java
-@@ -103,6 +103,7 @@ public class TripWireHookBlock extends Block {
+@@ -96,6 +96,7 @@ public class TripWireHookBlock extends Block {
  
      @Override
      public void setPlacedBy(final Level level, final BlockPos pos, final BlockState state, final @Nullable LivingEntity by, final ItemStack itemStack) {
