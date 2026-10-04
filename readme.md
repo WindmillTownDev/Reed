@@ -149,10 +149,13 @@ names for new types used only a few times, and mark changes with identifiable
 source style and preserve execution order.
 
 Text files use UTF-8 without a BOM and LF line endings; Windows batch files use
-CRLF. Keep this README synchronized when changing features, configuration,
+CRLF. Keep `readme.md` synchronized when changing features, configuration,
 patch inventories, or the build baseline.
 
 Additional local reference documents are kept in the Git-ignored `docs/`
-directory: the patch style guide, WTServer migration record, and inventories for
-the API, Paper-server, and Minecraft patch layers. They are not included in a
-fresh repository checkout.
+directory: the patch style guide, WTServer migration record, patch inventories,
+and `docs/features/readme.md`. The feature reference records upstream mechanisms,
+the problems addressed, exact execution order, persistence, and validation limits
+for the 26.2 baseline. `docs/redstone-order.md` covers shared redstone call paths.
+All documentation filenames are lowercase. Local references are not included in
+a fresh repository checkout.
