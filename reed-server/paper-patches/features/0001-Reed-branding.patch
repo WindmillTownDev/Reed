@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Windmill1055 <windmill1055@gmail.com>
+Date: Mon, 27 Jul 2026 17:16:02 +0800
+Subject: [PATCH] Reed branding
+
+
+diff --git a/src/main/java/io/papermc/paper/ServerBuildInfoImpl.java b/src/main/java/io/papermc/paper/ServerBuildInfoImpl.java
+index 74ffdc823e66fc5ec027c4b7c462382bcbfe2be2..17531e6b73015968337bc3df74444ca97777da88 100644
+--- a/src/main/java/io/papermc/paper/ServerBuildInfoImpl.java
++++ b/src/main/java/io/papermc/paper/ServerBuildInfoImpl.java
+@@ -31,6 +31,7 @@ public record ServerBuildInfoImpl(
+     private static final String ATTRIBUTE_GIT_COMMIT = "Git-Commit";
+ 
+     private static final String BRAND_PAPER_NAME = "Paper";
++    private static final Key BRAND_REED_ID = Key.key("windmilltown:reed");
+ 
+     private static final String BUILD_DEV = "DEV";
+ 
+@@ -61,7 +62,8 @@ public record ServerBuildInfoImpl(
+ 
+     @Override
+     public boolean isBrandCompatible(final @NotNull Key brandId) {
+-        return brandId.equals(this.brandId);
++        return brandId.equals(this.brandId)
++            || (this.brandId.equals(BRAND_REED_ID) && brandId.equals(BRAND_PAPER_ID));
+     }
+ 
+     @Override

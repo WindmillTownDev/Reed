@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Windmill1055 <windmill1055@gmail.com>
+Date: Mon, 27 Jul 2026 17:53:13 +0800
+Subject: [PATCH] Delay falling block source removal
+
+
+diff --git a/net/minecraft/world/entity/item/FallingBlockEntity.java b/net/minecraft/world/entity/item/FallingBlockEntity.java
+index 899f4ac76ae1397146bf15c4e5b9f5996451c2b5..1cc159a5d8c2673cdccebd12b5eb2a80d96b895f 100644
+--- a/net/minecraft/world/entity/item/FallingBlockEntity.java
++++ b/net/minecraft/world/entity/item/FallingBlockEntity.java
+@@ -73,6 +73,7 @@ public class FallingBlockEntity extends Entity {
+     public boolean forceTickAfterTeleportToDuplicate;
+     protected static final EntityDataAccessor<BlockPos> DATA_START_POS = SynchedEntityData.defineId(FallingBlockEntity.class, EntityDataSerializers.BLOCK_POS);
+     public boolean autoExpire = true; // Paper - Expand FallingBlock API
++    private boolean removeSourceOnFirstTick; // Reed - delayed source block removal
+ 
+     public FallingBlockEntity(final EntityType<? extends FallingBlockEntity> type, final Level level) {
+         super(type, level);
+@@ -99,7 +100,12 @@ public class FallingBlockEntity extends Entity {
+             state.hasProperty(BlockStateProperties.WATERLOGGED) ? state.setValue(BlockStateProperties.WATERLOGGED, false) : state
+         );
+         if (!org.bukkit.craftbukkit.event.CraftEventFactory.callEntityChangeBlockEvent(entity, pos, state.getFluidState().createLegacyBlock())) return entity; // CraftBukkit
+-        level.setBlock(pos, state.getFluidState().createLegacyBlock(), Block.UPDATE_ALL);
++        // Reed start - delayed source block removal
++        entity.removeSourceOnFirstTick = net.windmilltown.reed.configuration.ReedConfiguration.get().gameplay.legacyFallingBlockEntityTicking;
++        if (!entity.removeSourceOnFirstTick) {
++            level.setBlock(pos, state.getFluidState().createLegacyBlock(), Block.UPDATE_ALL);
++        }
++        // Reed end - delayed source block removal
+         level.addFreshEntity(entity);
+         return entity;
+     }
+@@ -152,6 +158,16 @@ public class FallingBlockEntity extends Entity {
+             this.discard(org.bukkit.event.entity.EntityRemoveEvent.Cause.DESPAWN); // CraftBukkit - add Bukkit remove cause
+         } else {
+             Block block = this.blockState.getBlock();
++            // Reed start - delayed source block removal
++            if (this.removeSourceOnFirstTick && this.time == 0) {
++                this.removeSourceOnFirstTick = false;
++                BlockPos startPos = this.getStartPos();
++                if (!this.level().getBlockState(startPos).is(block) || !this.level().removeBlock(startPos, false)) {
++                    this.discard(org.bukkit.event.entity.EntityRemoveEvent.Cause.DESPAWN);
++                    return;
++                }
++            }
++            // Reed end - delayed source block removal
+             this.time++;
+             this.applyGravity();
+             this.move(MoverType.SELF, this.getDeltaMovement());

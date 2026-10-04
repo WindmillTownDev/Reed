@@ -1,0 +1,86 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Windmill1055 <windmill1055@gmail.com>
+Date: Tue, 28 Jul 2026 00:45:08 +0800
+Subject: [PATCH] Add player no clip
+
+
+diff --git a/net/minecraft/server/network/ServerGamePacketListenerImpl.java b/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+index f936da2a1ffef5fd84d8d63be3575fd06ac9a7b2..6fbfae0ac8cca524c52d139b274a0af78162ecb3 100644
+--- a/net/minecraft/server/network/ServerGamePacketListenerImpl.java
++++ b/net/minecraft/server/network/ServerGamePacketListenerImpl.java
+@@ -3593,6 +3593,7 @@ public class ServerGamePacketListenerImpl
+                 this.player.onUpdateAbilities(); // Tell the player their ability was reverted
+             }
+         }
++        this.player.reed$updateNoPhysics(); // Reed - player no clip
+         // CraftBukkit end
+     }
+ 
+diff --git a/net/minecraft/world/entity/player/Player.java b/net/minecraft/world/entity/player/Player.java
+index 5d4b3ed09fe10f545d0720b2919f0d6c822d5196..9f4021efb363be81c38c7e67604af1b047f6899c 100644
+--- a/net/minecraft/world/entity/player/Player.java
++++ b/net/minecraft/world/entity/player/Player.java
+@@ -175,6 +175,27 @@ public abstract class Player extends Avatar implements ContainerUser {
+     public boolean affectsSpawning = true; // Paper - Affects Spawning API
+     public net.kyori.adventure.util.TriState flyingFallDamage = net.kyori.adventure.util.TriState.NOT_SET; // Paper - flying fall damage
+ 
++    // Reed start - player no clip
++    private boolean reed$noClip;
++
++    public boolean reed$isNoClip() {
++        return this.reed$noClip;
++    }
++
++    public void reed$setNoClip(final boolean noClip) {
++        this.reed$noClip = noClip;
++        this.reed$updateNoPhysics();
++    }
++
++    public boolean reed$isNoClipActive() {
++        return this.reed$noClip && this.abilities.flying;
++    }
++
++    public void reed$updateNoPhysics() {
++        this.noPhysics = this.isSpectator() || this.reed$isNoClipActive();
++    }
++    // Reed end - player no clip
++
+     // CraftBukkit start
+     public boolean fauxSleeping;
+     public int oldLevel = -1;
+@@ -243,7 +264,7 @@ public abstract class Player extends Avatar implements ContainerUser {
+ 
+     @Override
+     public void tick() {
+-        this.noPhysics = this.isSpectator();
++        this.reed$updateNoPhysics(); // Reed - player no clip
+         if (this.isSpectator() || this.isPassenger()) {
+             this.setOnGround(false);
+         }
+@@ -361,10 +382,10 @@ public abstract class Player extends Avatar implements ContainerUser {
+     }
+ 
+     protected void updatePlayerPose() {
+-        if (this.canPlayerFitWithinBlocksAndEntitiesWhen(Pose.SWIMMING)) {
++        if (this.reed$isNoClipActive() || this.canPlayerFitWithinBlocksAndEntitiesWhen(Pose.SWIMMING)) { // Reed - player no clip
+             Pose desiredPose = this.getDesiredPose();
+             Pose actualPose;
+-            if (this.isSpectator() || this.isPassenger() || this.canPlayerFitWithinBlocksAndEntitiesWhen(desiredPose)) {
++            if (this.isSpectator() || this.reed$isNoClipActive() || this.isPassenger() || this.canPlayerFitWithinBlocksAndEntitiesWhen(desiredPose)) { // Reed - player no clip
+                 actualPose = desiredPose;
+             } else if (this.canPlayerFitWithinBlocksAndEntitiesWhen(Pose.CROUCHING)) {
+                 actualPose = Pose.CROUCHING;
+@@ -1828,6 +1849,13 @@ public abstract class Player extends Avatar implements ContainerUser {
+         return this.gameMode() == GameType.CREATIVE;
+     }
+ 
++    @Override
++    public net.minecraft.world.level.material.PushReaction getPistonPushReaction() {
++        return this.reed$isNoClipActive()
++            ? net.minecraft.world.level.material.PushReaction.IGNORE
++            : super.getPistonPushReaction();
++    }
++
+     @Override
+     public boolean isPushedByFluid() {
+         return !this.abilities.flying;

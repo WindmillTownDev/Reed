@@ -1,0 +1,240 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Windmill1055 <windmill1055@gmail.com>
+Date: Mon, 27 Jul 2026 18:58:12 +0800
+Subject: [PATCH] Add no-update block placement
+
+
+diff --git a/net/minecraft/server/level/ServerLevel.java b/net/minecraft/server/level/ServerLevel.java
+index 02bd74f2ed7f34233e3543c8e70ae754adb8aa25..cf92ce7d79cc9edf380073581b61b59004ee623a 100644
+--- a/net/minecraft/server/level/ServerLevel.java
++++ b/net/minecraft/server/level/ServerLevel.java
+@@ -2038,6 +2038,7 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
+ 
+     @Override
+     public void blockEvent(final BlockPos pos, final Block block, final int b0, final int b1) {
++        if (!this.doBlockPlacementUpdate) return; // Reed - no updates during block placement
+         this.blockEvents.add(new BlockEventData(pos, block, b0, b1));
+     }
+ 
+diff --git a/net/minecraft/server/level/ServerPlayer.java b/net/minecraft/server/level/ServerPlayer.java
+index c063fa617ea79b758b9c4ef0456889a91e341ad4..a221e1fd89b183a05b014dc1b19b8e24c2776fbb 100644
+--- a/net/minecraft/server/level/ServerPlayer.java
++++ b/net/minecraft/server/level/ServerPlayer.java
+@@ -209,6 +209,7 @@ import org.slf4j.Logger;
+ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patches.chunk_system.player.ChunkSystemServerPlayer { // Paper - rewrite chunk system
+     private static final Logger LOGGER = LogUtils.getLogger();
+     public long lastSave = MinecraftServer.currentTick; // Paper - Incremental chunk and player saving
++    private boolean doBlockPlacementUpdate = true; // Reed - control block placement updates
+     private static final int NEUTRAL_MOB_DEATH_NOTIFICATION_RADII_XZ = 32;
+     private static final int NEUTRAL_MOB_DEATH_NOTIFICATION_RADII_Y = 10;
+     private static final int FLY_STAT_RECORDING_SPEED = 25;
+@@ -491,6 +492,16 @@ public class ServerPlayer extends Player implements ca.spottedleaf.moonrise.patc
+         // CraftBukkit end
+     }
+ 
++    // Reed start - control block placement updates
++    public boolean getDoBlockPlacementUpdate() {
++        return this.doBlockPlacementUpdate;
++    }
++
++    public void setDoBlockPlacementUpdate(final boolean doBlockPlacementUpdate) {
++        this.doBlockPlacementUpdate = doBlockPlacementUpdate;
++    }
++    // Reed end - control block placement updates
++
+     @Override
+     public BlockPos adjustSpawnLocation(final ServerLevel level, final BlockPos spawnSuggestion) {
+         CompletableFuture<Vec3> future = PlayerSpawnFinder.findSpawn(level, spawnSuggestion);
+diff --git a/net/minecraft/world/item/BlockItem.java b/net/minecraft/world/item/BlockItem.java
+index b94c4f0a6908a37d8a07dba6ff3ece7193aca1b5..a1ece2458318a91e85745f3830ac043f3fbfa5b3 100644
+--- a/net/minecraft/world/item/BlockItem.java
++++ b/net/minecraft/world/item/BlockItem.java
+@@ -65,34 +65,49 @@ public class BlockItem extends Item {
+             return InteractionResult.FAIL;
+         }
+ 
+-        if (!this.placeBlock(updatedPlaceContext, placementState)) {
+-            return InteractionResult.FAIL;
+-        }
+-
+         BlockPos pos = updatedPlaceContext.getClickedPos();
+         Level level = updatedPlaceContext.getLevel();
+         Player player = updatedPlaceContext.getPlayer();
+         ItemStack itemStack = updatedPlaceContext.getItemInHand();
+-        BlockState placedState = level.getBlockState(pos);
+         java.util.function.UnaryOperator<InteractionResult.PaperSuccessContext> context = c -> c.placedBlockAt(pos.immutable()); // Paper - track placed block position from block item
+-        if (placedState.is(placementState.getBlock())) {
+-            placedState = this.updateBlockStateFromTag(pos, level, itemStack, placedState);
+-            // Paper start - Reset placed block on exception
+-            try {
+-                boolean updatedBlockEntity = this.updateCustomBlockEntityTag(pos, level, player, itemStack, placedState);
+-                context = context.andThen(c -> c.updatedBlockEntity(updatedBlockEntity))::apply; // track whether the block entity got updated or not
+-                updateBlockEntityComponents(level, pos, itemStack);
+-            } catch (Exception ex) {
+-                ((org.bukkit.craftbukkit.block.CraftBlockState) previousState).revertPlace(false);
+-                if (player instanceof ServerPlayer serverPlayer) {
+-                    net.minecraft.server.MinecraftServer.LOGGER.warn("Player {} tried placing invalid block", player.getScoreboardName(), ex);
+-                    serverPlayer.connection.disconnect(net.minecraft.network.chat.Component.literal("Packet processing error"), org.bukkit.event.player.PlayerKickEvent.Cause.ILLEGAL_ACTION);
+-                    return InteractionResult.FAIL;
++        // Reed start - scope block placement updates
++        final boolean previousDoBlockPlacementUpdate = level.doBlockPlacementUpdate;
++        if (player instanceof ServerPlayer serverPlayer) {
++            level.doBlockPlacementUpdate = previousDoBlockPlacementUpdate && serverPlayer.getDoBlockPlacementUpdate();
++        }
++
++        BlockState placedState;
++        try {
++            if (!this.placeBlock(updatedPlaceContext, placementState)) {
++                return InteractionResult.FAIL;
++            }
++
++            placedState = level.getBlockState(pos);
++            if (placedState.is(placementState.getBlock())) {
++                placedState = this.updateBlockStateFromTag(pos, level, itemStack, placedState);
++                // Paper start - Reset placed block on exception
++                try {
++                    boolean updatedBlockEntity = this.updateCustomBlockEntityTag(pos, level, player, itemStack, placedState);
++                    context = context.andThen(c -> c.updatedBlockEntity(updatedBlockEntity))::apply; // track whether the block entity got updated or not
++                    updateBlockEntityComponents(level, pos, itemStack);
++                } catch (Exception ex) {
++                    ((org.bukkit.craftbukkit.block.CraftBlockState) previousState).revertPlace(false);
++                    if (player instanceof ServerPlayer serverPlayer) {
++                        net.minecraft.server.MinecraftServer.LOGGER.warn("Player {} tried placing invalid block", player.getScoreboardName(), ex);
++                        serverPlayer.connection.disconnect(net.minecraft.network.chat.Component.literal("Packet processing error"), org.bukkit.event.player.PlayerKickEvent.Cause.ILLEGAL_ACTION);
++                        return InteractionResult.FAIL;
++                    }
++                    throw ex; // Rethrow exception if not placed by a player
+                 }
+-                throw ex; // Rethrow exception if not placed by a player
++                // Paper end - Reset placed block on exception
++                placedState.getBlock().setPlacedBy(level, pos, placedState, player, itemStack);
+             }
+-            // Paper end - Reset placed block on exception
+-            placedState.getBlock().setPlacedBy(level, pos, placedState, player, itemStack);
++        } finally {
++            level.doBlockPlacementUpdate = previousDoBlockPlacementUpdate;
++        }
++        // Reed end - scope block placement updates
++
++        if (placedState.is(placementState.getBlock())) {
+             // CraftBukkit start - special case for handling block placement with water lilies, frog spawn and snow buckets
+             if (player != null && (this instanceof PlaceOnWaterBlockItem || this instanceof SolidBucketItem)) {
+                 org.bukkit.event.block.BlockPlaceEvent placeEvent = org.bukkit.craftbukkit.event.CraftEventFactory.callBlockPlaceEvent((net.minecraft.server.level.ServerLevel) level, player, updatedPlaceContext.getHand(), previousState, pos);
+diff --git a/net/minecraft/world/item/ItemStack.java b/net/minecraft/world/item/ItemStack.java
+index 44a7590558fa73fb570f76ba7a4e7db1415d08f7..b95cf61fb8d90ea9667541ca6b30564996b414bb 100644
+--- a/net/minecraft/world/item/ItemStack.java
++++ b/net/minecraft/world/item/ItemStack.java
+@@ -473,20 +473,28 @@ public final class ItemStack implements DataComponentHolder, ItemInstance {
+                     BlockPos newPos = snapshot.getPosition();
+                     net.minecraft.world.level.block.state.BlockState block = level.getBlockState(newPos);
+ 
+-                    if (!(block.getBlock() instanceof net.minecraft.world.level.block.BaseEntityBlock)) { // Containers get placed automatically
++                    // Reed start - suppress deferred block placement updates
++                    if ((snapshot.getFlags() & net.minecraft.world.level.block.Block.UPDATE_SKIP_ON_PLACE) == 0
++                        && !(block.getBlock() instanceof net.minecraft.world.level.block.BaseEntityBlock)) { // Containers get placed automatically
+                         block.onPlace(level, newPos, oldBlock, true, context);
+                     }
++                    // Reed end - suppress deferred block placement updates
+ 
+                     level.notifyAndUpdatePhysics(newPos, null, oldBlock, block, level.getBlockState(newPos), snapshot.getFlags(), net.minecraft.world.level.block.Block.UPDATE_LIMIT); // send null chunk as chunk.k() returns false by this point
+                 }
+ 
+                 BlockPos placedPos = success.paperSuccessContext().placedPos();
+-                if (usedItem == Items.WITHER_SKELETON_SKULL && placedPos != null) { // Special case skulls to allow wither spawns to be cancelled
++                // Reed start - suppress deferred block placement updates
++                if (usedItem == Items.WITHER_SKELETON_SKULL
++                    && placedPos != null
++                    && capturedBlockStates.stream().noneMatch(snapshot -> snapshot.getPosition().equals(placedPos)
++                        && (snapshot.getFlags() & net.minecraft.world.level.block.Block.UPDATE_SKIP_ON_PLACE) != 0)) { // Special case skulls to allow wither spawns to be cancelled
+                     net.minecraft.world.level.block.entity.BlockEntity blockEntity = level.getBlockEntity(placedPos);
+                     if (blockEntity instanceof net.minecraft.world.level.block.entity.SkullBlockEntity placedSkull) {
+                         net.minecraft.world.level.block.WitherSkullBlock.checkSpawn(level, placedPos, placedSkull);
+                     }
+                 }
++                // Reed end - suppress deferred block placement updates
+ 
+                 // SPIGOT-4678
+                 if (usedItem instanceof SignItem && placedPos != null && !success.paperSuccessContext().updatedBlockEntity()) {
+diff --git a/net/minecraft/world/level/Level.java b/net/minecraft/world/level/Level.java
+index 9286d9bcf3ec4069e77d3133f3d7bf29b2370c5a..4af49ee40b89e9db922aeebaa124b0ad9ef055e1 100644
+--- a/net/minecraft/world/level/Level.java
++++ b/net/minecraft/world/level/Level.java
+@@ -152,6 +152,7 @@ public abstract class Level implements LevelAccessor, AutoCloseable, ca.spottedl
+ 
+     public boolean captureBlockStates = false;
+     public boolean captureTreeGeneration = false;
++    public boolean doBlockPlacementUpdate = true; // Reed - scoped block placement updates
+     public Map<BlockPos, org.bukkit.craftbukkit.block.CraftBlockState> capturedBlockStates = new java.util.LinkedHashMap<>(); // Paper
+     public Map<BlockPos, BlockEntity> capturedBlockEntities = new java.util.LinkedHashMap<>(); // Paper - Retain block place order when capturing blockstates
+     @Nullable
+@@ -1053,7 +1054,16 @@ public abstract class Level implements LevelAccessor, AutoCloseable, ca.spottedl
+     }
+ 
+     @Override
+-    public boolean setBlock(final BlockPos pos, final BlockState blockState, final @Block.UpdateFlags int updateFlags, final int updateLimit) {
++    public boolean setBlock(final BlockPos pos, final BlockState blockState, @Block.UpdateFlags int updateFlags, final int updateLimit) {
++        // Reed start - suppress block placement updates
++        if (!this.doBlockPlacementUpdate) {
++            updateFlags = updateFlags
++                & (Block.UPDATE_SUPPRESS_DROPS | Block.UPDATE_SKIP_SHAPE_UPDATE_ON_WIRE | Block.UPDATE_SKIP_BLOCK_ENTITY_SIDEEFFECTS | Block.UPDATE_SKIP_POI)
++                | Block.UPDATE_CLIENTS
++                | Block.UPDATE_KNOWN_SHAPE
++                | Block.UPDATE_SKIP_ON_PLACE;
++        }
++        // Reed end - suppress block placement updates
+         // CraftBukkit start - tree generation
+         if (this.captureTreeGeneration) {
+             // Paper start - Protect Bedrock and End Portal/Frames from being destroyed
+diff --git a/net/minecraft/world/level/ScheduledTickAccess.java b/net/minecraft/world/level/ScheduledTickAccess.java
+index 28e8e600ea19ac2a52035779781e86e112a36497..5de37e280e2c5f333548a9bf9443fc6075aba278 100644
+--- a/net/minecraft/world/level/ScheduledTickAccess.java
++++ b/net/minecraft/world/level/ScheduledTickAccess.java
+@@ -15,20 +15,24 @@ public interface ScheduledTickAccess {
+     LevelTickAccess<Block> getBlockTicks();
+ 
+     default void scheduleTick(final BlockPos pos, final Block type, final int tickDelay, final TickPriority priority) {
++        if (this instanceof Level level && !level.doBlockPlacementUpdate) return; // Reed - no updates during block placement
+         this.getBlockTicks().schedule(this.createTick(pos, type, tickDelay, priority));
+     }
+ 
+     default void scheduleTick(final BlockPos pos, final Block type, final int tickDelay) {
++        if (this instanceof Level level && !level.doBlockPlacementUpdate) return; // Reed - no updates during block placement
+         this.getBlockTicks().schedule(this.createTick(pos, type, tickDelay));
+     }
+ 
+     LevelTickAccess<Fluid> getFluidTicks();
+ 
+     default void scheduleTick(final BlockPos pos, final Fluid type, final int tickDelay, final TickPriority priority) {
++        if (this instanceof Level level && !level.doBlockPlacementUpdate) return; // Reed - no updates during block placement
+         this.getFluidTicks().schedule(this.createTick(pos, type, tickDelay, priority));
+     }
+ 
+     default void scheduleTick(final BlockPos pos, final Fluid type, final int tickDelay) {
++        if (this instanceof Level level && !level.doBlockPlacementUpdate) return; // Reed - no updates during block placement
+         this.getFluidTicks().schedule(this.createTick(pos, type, tickDelay));
+     }
+ }
+diff --git a/net/minecraft/world/level/block/CommandBlock.java b/net/minecraft/world/level/block/CommandBlock.java
+index 8cf4410a41ccd2f7e253e5400ca679a498aea4db..5409ee6ec57ab10e90b82b51d671c34c41d2ba2a 100644
+--- a/net/minecraft/world/level/block/CommandBlock.java
++++ b/net/minecraft/world/level/block/CommandBlock.java
+@@ -161,6 +161,7 @@ public class CommandBlock extends BaseEntityBlock implements GameMasterBlock {
+                     commandBlockEntity.setAutomatic(this.automatic);
+                 }
+ 
++                if (!level.doBlockPlacementUpdate) return; // Reed - no updates during block placement
+                 boolean hasNeighborSignal = level.hasNeighborSignal(pos);
+                 this.setPoweredAndUpdate(level, pos, commandBlockEntity, hasNeighborSignal);
+             }
+diff --git a/net/minecraft/world/level/block/TripWireHookBlock.java b/net/minecraft/world/level/block/TripWireHookBlock.java
+index 9d08ce61f964bb3115c708091549a233dabcf0e3..63a4879e4388ffb4c8d17b8f0c9e5d7385f807da 100644
+--- a/net/minecraft/world/level/block/TripWireHookBlock.java
++++ b/net/minecraft/world/level/block/TripWireHookBlock.java
+@@ -103,6 +103,7 @@ public class TripWireHookBlock extends Block {
+ 
+     @Override
+     public void setPlacedBy(final Level level, final BlockPos pos, final BlockState state, final @Nullable LivingEntity by, final ItemStack itemStack) {
++        if (!level.doBlockPlacementUpdate) return; // Reed - no updates during block placement
+         calculateState(level, pos, state, false, false, -1, null);
+     }
+ 

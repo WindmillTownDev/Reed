@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Windmill1055 <windmill1055@gmail.com>
+Date: Tue, 28 Jul 2026 00:45:00 +0800
+Subject: [PATCH] Add player no clip API
+
+
+diff --git a/src/main/java/org/bukkit/entity/Player.java b/src/main/java/org/bukkit/entity/Player.java
+index f42599a9a24e1e723a8a3b7e11beece1f4c0cd1d..7515e8779e923abfb49fc611730877cdc6b54431 100644
+--- a/src/main/java/org/bukkit/entity/Player.java
++++ b/src/main/java/org/bukkit/entity/Player.java
+@@ -4036,4 +4036,21 @@ public interface Player extends HumanEntity, Conversable, OfflinePlayer, PluginM
+      * @param doBlockPlacementUpdate whether block placement updates are performed
+      */
+     void setDoBlockPlacementUpdate(boolean doBlockPlacementUpdate);
++
++    /**
++     * Gets whether no-clip is enabled for this player.
++     * <p>No-clip is active only while the player is flying.</p>
++     *
++     * @return whether no-clip is enabled
++     */
++    boolean isNoClip();
++
++    /**
++     * Enables or disables no-clip for this player.
++     * <p>When enabled, the player ignores block collisions and piston movement
++     * only while flying. Stopping flight immediately restores normal physics.</p>
++     *
++     * @param noClip whether no-clip is enabled
++     */
++    void setNoClip(boolean noClip);
+ }

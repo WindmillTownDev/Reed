@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Windmill1055 <windmill1055@gmail.com>
+Date: Mon, 27 Jul 2026 18:38:59 +0800
+Subject: [PATCH] Add trident auto despawn API
+
+
+diff --git a/src/main/java/org/bukkit/entity/Trident.java b/src/main/java/org/bukkit/entity/Trident.java
+index d21df39ceef657575f3c2e9070bf6d2671978c7a..74d26cc139c7aaa5b51a286bcc3744436d800c71 100644
+--- a/src/main/java/org/bukkit/entity/Trident.java
++++ b/src/main/java/org/bukkit/entity/Trident.java
+@@ -58,6 +58,20 @@ public interface Trident extends AbstractArrow, ThrowableProjectile {
+      */
+     void setHasDealtDamage(boolean hasDealtDamage);
+ 
++    /**
++     * Gets whether this trident will naturally despawn.
++     *
++     * @return whether this trident will naturally despawn
++     */
++    boolean isAutoDespawn();
++
++    /**
++     * Sets whether this trident will naturally despawn.
++     *
++     * @param autoDespawn whether this trident will naturally despawn
++     */
++    void setAutoDespawn(boolean autoDespawn);
++
+     /**
+      * Sets the base amount of damage this trident will do.
+      *

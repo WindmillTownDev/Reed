@@ -1,0 +1,25 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Windmill1055 <windmill1055@gmail.com>
+Date: Mon, 27 Jul 2026 18:38:59 +0800
+Subject: [PATCH] Implement trident auto despawn API
+
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftTrident.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftTrident.java
+index 59aa27782a76a77f136c48c0d2b185b49cd855e7..7c547e8cfbd7909d8d3cef883800b5db60063151 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftTrident.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftTrident.java
+@@ -45,4 +45,14 @@ public class CraftTrident extends CraftAbstractArrow implements Trident {
+     public void setHasDealtDamage(boolean hasDealtDamage) {
+         this.getHandle().dealtDamage = hasDealtDamage;
+     }
++
++    @Override
++    public boolean isAutoDespawn() {
++        return this.getHandle().isAutoDespawn();
++    }
++
++    @Override
++    public void setAutoDespawn(boolean autoDespawn) {
++        this.getHandle().setAutoDespawn(autoDespawn);
++    }
+ }

@@ -1,0 +1,116 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Windmill1055 <windmill1055@gmail.com>
+Date: Wed, 29 Jul 2026 12:05:53 +0800
+Subject: [PATCH] Preserve vanilla entity ticking order
+
+
+diff --git a/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/ChunkEntitySlices.java b/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/ChunkEntitySlices.java
+index 8d9ce3d301d5f7e4106587ae00adb8dd5b8b6f88..91c70f0b1a94ec9ae434ea7052184df989eccdf1 100644
+--- a/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/ChunkEntitySlices.java
++++ b/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/ChunkEntitySlices.java
+@@ -40,6 +40,8 @@ import java.util.function.Predicate;
+ public final class ChunkEntitySlices {
+ 
+     private static final Logger LOGGER = LogUtils.getLogger();
++    private static final java.util.Comparator<Entity> REED_ENTITY_TICKING_SEQUENCE_COMPARATOR =
++        java.util.Comparator.comparingLong(Entity::reed$getEntityTickingSequence);
+ 
+     public final int minSection;
+     public final int maxSection;
+@@ -52,6 +54,7 @@ public final class ChunkEntitySlices {
+     private final Reference2ObjectOpenHashMap<Class<? extends Entity>, EntityCollectionBySection> entitiesByClass;
+     private final Reference2ObjectOpenHashMap<EntityType<?>, EntityCollectionBySection> entitiesByType;
+     private final EntityList entities = new EntityList();
++    private long nextEntityTickingSequence;
+ 
+     public FullChunkStatus status;
+     public final ChunkData chunkData;
+@@ -169,6 +172,12 @@ public final class ChunkEntitySlices {
+             return null;
+         }
+ 
++        // Reed start - stable entity ticking order
++        if (net.windmilltown.reed.configuration.ReedConfiguration.get().paperFix.useVanillaEntityTickingOrder) {
++            collectedEntities.sort(REED_ENTITY_TICKING_SEQUENCE_COMPARATOR);
++        }
++        // Reed end - stable entity ticking order
++
+         return saveEntityChunk(collectedEntities, new ChunkPos(this.chunkX, this.chunkZ), (ServerLevel)this.world);
+     }
+ 
+@@ -243,9 +252,16 @@ public final class ChunkEntitySlices {
+     public void updateStatus(final FullChunkStatus status, final EntityLookup lookup) {
+         this.status = status;
+ 
+-        final Entity[] entities = this.entities.getRawData();
++        final int size = this.entities.size();
++        Entity[] entities = this.entities.getRawData();
++        // Reed start - stable entity ticking order
++        if (net.windmilltown.reed.configuration.ReedConfiguration.get().paperFix.useVanillaEntityTickingOrder) {
++            entities = Arrays.copyOf(entities, size);
++            Arrays.sort(entities, REED_ENTITY_TICKING_SEQUENCE_COMPARATOR);
++        }
++        // Reed end - stable entity ticking order
+ 
+-        for (int i = 0, size = this.entities.size(); i < size; ++i) {
++        for (int i = 0; i < size; ++i) {
+             final Entity entity = entities[i];
+ 
+             final Visibility oldVisibility = EntityLookup.getEntityStatus(entity);
+@@ -257,9 +273,21 @@ public final class ChunkEntitySlices {
+     }
+ 
+     public boolean addEntity(final Entity entity, final int chunkSection) {
++        return this.addEntity(entity, chunkSection, false);
++    }
++
++    public boolean addEntity(final Entity entity, final int chunkSection, final boolean retainEntityTickingSequence) {
+         if (!this.entities.add(entity)) {
+             return false;
+         }
++        // Reed start - stable entity ticking order
++        final long sequence = entity.reed$getEntityTickingSequence();
++        if (!retainEntityTickingSequence || sequence == Long.MIN_VALUE) {
++            entity.reed$setEntityTickingSequence(this.nextEntityTickingSequence++);
++        } else if (sequence >= this.nextEntityTickingSequence) {
++            this.nextEntityTickingSequence = sequence + 1L;
++        }
++        // Reed end - stable entity ticking order
+         ((ChunkSystemEntity)entity).moonrise$setChunkStatus(this.status);
+         ((ChunkSystemEntity)entity).moonrise$setChunkData(this.chunkData);
+         final int sectionIndex = chunkSection - this.minSection;
+diff --git a/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/EntityLookup.java b/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/EntityLookup.java
+index 328784ba08236553e49d62320b79f7222292412f..1360674cfc7d63802ad47ee54f21fefca2f9f6c8 100644
+--- a/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/EntityLookup.java
++++ b/ca/spottedleaf/moonrise/patches/chunk_system/level/entity/EntityLookup.java
+@@ -547,7 +547,7 @@ public abstract class EntityLookup implements LevelEntityGetter<Entity> {
+             LOGGER.warn("Could not remove entity " + entity + " from its old chunk section (" + sectionX + "," + sectionY + "," + sectionZ + ") since it was not contained in the section");
+         }
+ 
+-        if (!slices.addEntity(entity, newSectionY)) {
++        if (!slices.addEntity(entity, newSectionY, old == slices)) {
+             LOGGER.warn("Could not add entity " + entity + " to its new chunk section (" + newSectionX + "," + newSectionY + "," + newSectionZ + ") as it is already contained in the section");
+         }
+ 
+diff --git a/net/minecraft/world/entity/Entity.java b/net/minecraft/world/entity/Entity.java
+index 250bfd4473be96270e0acb75e27892116bae5d2d..5deecd918a1515558b0d24d8df59c7af7e257894 100644
+--- a/net/minecraft/world/entity/Entity.java
++++ b/net/minecraft/world/entity/Entity.java
+@@ -406,6 +406,17 @@ public abstract class Entity
+     private int sectionY = Integer.MIN_VALUE;
+     private int sectionZ = Integer.MIN_VALUE;
+     private boolean updatingSectionStatus;
++    // Reed start - stable entity ticking order
++    private long reed$entityTickingSequence = Long.MIN_VALUE;
++
++    public final long reed$getEntityTickingSequence() {
++        return this.reed$entityTickingSequence;
++    }
++
++    public final void reed$setEntityTickingSequence(final long sequence) {
++        this.reed$entityTickingSequence = sequence;
++    }
++    // Reed end - stable entity ticking order
+ 
+     @Override
+     public final boolean moonrise$isHardColliding() {

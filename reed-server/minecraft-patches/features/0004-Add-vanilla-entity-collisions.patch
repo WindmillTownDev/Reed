@@ -1,0 +1,152 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Windmill1055 <windmill1055@gmail.com>
+Date: Mon, 27 Jul 2026 18:05:36 +0800
+Subject: [PATCH] Add vanilla entity collisions
+
+
+diff --git a/net/minecraft/world/entity/Entity.java b/net/minecraft/world/entity/Entity.java
+index 1530810cdb74810e37e3e22ce4fcda4ee7511055..250bfd4473be96270e0acb75e27892116bae5d2d 100644
+--- a/net/minecraft/world/entity/Entity.java
++++ b/net/minecraft/world/entity/Entity.java
+@@ -1616,6 +1616,12 @@ public abstract class Entity
+     }
+ 
+     private Vec3 collide(final Vec3 movement) {
++        // Reed start - vanilla entity collisions
++        if (net.windmilltown.reed.configuration.ReedConfiguration.get().paperFix.useVanillaEntityCollision) {
++            return this.collideVanilla(movement);
++        }
++        // Reed end - vanilla entity collisions
++
+         // Paper start - optimise collisions
+         final boolean xZero = movement.x == 0.0;
+         final boolean yZero = movement.y == 0.0;
+@@ -1688,6 +1694,69 @@ public abstract class Entity
+         // Paper end - optimise collisions
+     }
+ 
++    // Reed start - vanilla entity collisions
++    private Vec3 collideVanilla(final Vec3 movement) {
++        AABB aabb = this.getBoundingBox();
++        List<VoxelShape> entityColliders = this.level().getEntityCollisions(this, aabb.expandTowards(movement));
++        Vec3 movementStep = movement.lengthSqr() == 0.0
++            ? movement
++            : collideBoundingBoxVanilla(this, movement, aabb, this.level(), entityColliders);
++        boolean xCollision = movement.x != movementStep.x;
++        boolean yCollision = movement.y != movementStep.y;
++        boolean zCollision = movement.z != movementStep.z;
++        boolean onGroundAfterCollision = yCollision && movement.y < 0.0;
++        if (this.maxUpStep() > 0.0F && (onGroundAfterCollision || this.onGround()) && (xCollision || zCollision)) {
++            AABB groundedAABB = onGroundAfterCollision ? aabb.move(0.0, movementStep.y, 0.0) : aabb;
++            AABB stepUpAABB = groundedAABB.expandTowards(movement.x, this.maxUpStep(), movement.z);
++            if (!onGroundAfterCollision) {
++                stepUpAABB = stepUpAABB.expandTowards(0.0, -1.0E-5F, 0.0);
++            }
++
++            List<VoxelShape> colliders = collectCollidersIgnoringWorldBorder(this, this.level, entityColliders, stepUpAABB);
++            float stepHeightToSkip = (float)movementStep.y;
++            float[] candidateStepUpHeights = collectCandidateStepUpHeights(groundedAABB, colliders, this.maxUpStep(), stepHeightToSkip);
++
++            for (float candidateStepUpHeight : candidateStepUpHeights) {
++                Vec3 stepFromGround = collideWithShapesVanilla(
++                    new Vec3(movement.x, candidateStepUpHeight, movement.z),
++                    groundedAABB,
++                    colliders
++                );
++                if (stepFromGround.horizontalDistanceSqr() > movementStep.horizontalDistanceSqr()) {
++                    double distanceToGround = aabb.minY - groundedAABB.minY;
++                    return stepFromGround.subtract(0.0, distanceToGround, 0.0);
++                }
++            }
++        }
++
++        return movementStep;
++    }
++
++    private static Vec3 collideBoundingBoxVanilla(
++        final Entity source, final Vec3 movement, final AABB boundingBox, final Level level, final List<VoxelShape> entityColliders
++    ) {
++        List<VoxelShape> colliders = collectCollidersIgnoringWorldBorder(source, level, entityColliders, boundingBox.expandTowards(movement));
++        return collideWithShapesVanilla(movement, boundingBox, colliders);
++    }
++
++    private static Vec3 collideWithShapesVanilla(final Vec3 movement, final AABB boundingBox, final List<VoxelShape> shapes) {
++        if (shapes.isEmpty()) {
++            return movement;
++        }
++
++        Vec3 resolvedMovement = Vec3.ZERO;
++        for (Direction.Axis axis : Direction.axisStepOrder(movement)) {
++            double axisMovement = movement.get(axis);
++            if (axisMovement != 0.0) {
++                double collision = Shapes.collideVanilla(axis, boundingBox.move(resolvedMovement), shapes, axisMovement);
++                resolvedMovement = resolvedMovement.with(axis, collision);
++            }
++        }
++
++        return resolvedMovement;
++    }
++    // Reed end - vanilla entity collisions
++
+     private static float[] collectCandidateStepUpHeights(
+         final AABB boundingBox, final List<VoxelShape> colliders, final float maxStepHeight, final float stepHeightToSkip
+     ) {
+diff --git a/net/minecraft/world/level/EntityGetter.java b/net/minecraft/world/level/EntityGetter.java
+index cc938f43c4a5e947ed87ca2001cbaca4084bf64c..c5f600d62c11907f614039307724bb0b2eb20e4f 100644
+--- a/net/minecraft/world/level/EntityGetter.java
++++ b/net/minecraft/world/level/EntityGetter.java
+@@ -75,6 +75,28 @@ public interface EntityGetter extends ca.spottedleaf.moonrise.patches.chunk_syst
+     }
+ 
+     default List<VoxelShape> getEntityCollisions(final @Nullable Entity source, AABB testArea) { // Paper - optimise collisions - remove final
++        // Reed start - vanilla entity collisions
++        if (net.windmilltown.reed.configuration.ReedConfiguration.get().paperFix.useVanillaEntityCollision) {
++            if (testArea.getSize() < 1.0E-7) {
++                return List.of();
++            }
++
++            Predicate<Entity> canCollide = source == null
++                ? EntitySelector.CAN_BE_COLLIDED_WITH
++                : EntitySelector.NO_SPECTATORS.and(source::canCollideWith);
++            List<Entity> collidingEntities = this.getEntities(source, testArea.inflate(1.0E-7), canCollide);
++            if (collidingEntities.isEmpty()) {
++                return List.of();
++            }
++
++            Builder<VoxelShape> shapes = ImmutableList.builderWithExpectedSize(collidingEntities.size());
++            for (Entity entity : collidingEntities) {
++                shapes.add(Shapes.create(entity.getBoundingBox()));
++            }
++            return shapes.build();
++        }
++        // Reed end - vanilla entity collisions
++
+         // Paper start - optimise collisions
+         // first behavior change is to correctly check for empty AABB
+         if (ca.spottedleaf.moonrise.patches.collisions.CollisionUtil.isEmpty(testArea)) {
+diff --git a/net/minecraft/world/phys/shapes/Shapes.java b/net/minecraft/world/phys/shapes/Shapes.java
+index b709ce647334e165ac660973fd736904aff4afff..31efc6f675243f1e6eaef982a42ee83ca9933f4e 100644
+--- a/net/minecraft/world/phys/shapes/Shapes.java
++++ b/net/minecraft/world/phys/shapes/Shapes.java
+@@ -254,6 +254,21 @@ public final class Shapes {
+         return distance;
+     }
+ 
++    // Reed start - vanilla entity collisions
++    public static double collideVanilla(final Direction.Axis axis, final AABB moving, final Iterable<VoxelShape> shapes, double distance) {
++        AxisCycle transform = AxisCycle.between(axis, Direction.Axis.X);
++        for (VoxelShape shape : shapes) {
++            if (Math.abs(distance) < 1.0E-7) {
++                return 0.0;
++            }
++
++            distance = shape.collideX(transform, moving, distance);
++        }
++
++        return distance;
++    }
++    // Reed end - vanilla entity collisions
++
+     // Paper start - optimise collisions
+     public static boolean blockOccludes(final VoxelShape first, final VoxelShape second, final Direction direction) {
+         if (first == BLOCK & second == BLOCK) {

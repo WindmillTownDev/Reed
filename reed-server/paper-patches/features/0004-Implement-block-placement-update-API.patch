@@ -1,0 +1,25 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Windmill1055 <windmill1055@gmail.com>
+Date: Mon, 27 Jul 2026 18:58:08 +0800
+Subject: [PATCH] Implement block placement update API
+
+
+diff --git a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+index ad51146ef274106d542bf416cd47d0ebcd17e7c6..e8713e5d7a3d7f7dc70556193cadbbd84e208500 100644
+--- a/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
++++ b/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java
+@@ -3364,4 +3364,14 @@ public class CraftPlayer extends CraftHumanEntity implements Player, PluginMessa
+         super.knockback(strength, directionX, directionZ);
+         this.entity.hurtMarked = true;
+     }
++
++    @Override
++    public boolean getDoBlockPlacementUpdate() {
++        return this.getHandle().getDoBlockPlacementUpdate();
++    }
++
++    @Override
++    public void setDoBlockPlacementUpdate(final boolean doBlockPlacementUpdate) {
++        this.getHandle().setDoBlockPlacementUpdate(doBlockPlacementUpdate);
++    }
+ }

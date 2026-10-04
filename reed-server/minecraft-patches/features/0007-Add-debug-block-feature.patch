@@ -1,0 +1,1017 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Windmill1055 <windmill1055@gmail.com>
+Date: Mon, 27 Jul 2026 22:45:16 +0800
+Subject: [PATCH] Add debug block feature
+
+
+diff --git a/net/minecraft/network/PacketProcessor.java b/net/minecraft/network/PacketProcessor.java
+index 408cb996fc8ff77785da8919f19baff2cf4bd789..9973cce92779d5ec3c1810dca75ee69f6bf33f51 100644
+--- a/net/minecraft/network/PacketProcessor.java
++++ b/net/minecraft/network/PacketProcessor.java
+@@ -90,6 +90,12 @@ public class PacketProcessor implements AutoCloseable {
+ 
+     private record ListenerAndPacket<T extends PacketListener>(T listener, Packet<T> packet) {
+         public void handle() {
++            // Reed start - network update context
++            final net.windmilltown.reed.debugblock.ServerTickPhase reed$previousNetworkPhase =
++                net.windmilltown.reed.debugblock.ReedDebugBlockHooks.setTickPhase(
++                    net.windmilltown.reed.debugblock.ServerTickPhase.NETWORK
++                );
++            // Reed end - network update context
+             packetProcessing.push(this.listener); // Paper - detailed watchdog information
+             try { // Paper - detailed watchdog information
+             if (this.listener.shouldHandleMessage(this.packet)) {
+@@ -107,8 +113,12 @@ public class PacketProcessor implements AutoCloseable {
+             }
+             // Paper start - detailed watchdog information
+             } finally {
+-                totalMainThreadPacketsProcessed.getAndIncrement();
+-                packetProcessing.pop();
++                try { // Reed - restore network update context even if watchdog cleanup fails
++                    totalMainThreadPacketsProcessed.getAndIncrement();
++                    packetProcessing.pop();
++                } finally {
++                    net.windmilltown.reed.debugblock.ReedDebugBlockHooks.setTickPhase(reed$previousNetworkPhase); // Reed
++                }
+             }
+             // Paper end - detailed watchdog information
+         }
+diff --git a/net/minecraft/server/MinecraftServer.java b/net/minecraft/server/MinecraftServer.java
+index a7a276024d1aa70ac6b85f6fe4df08ec6aad52bb..792919f00bc703f54d4a830f8437f38c88a7feff 100644
+--- a/net/minecraft/server/MinecraftServer.java
++++ b/net/minecraft/server/MinecraftServer.java
+@@ -1614,7 +1614,17 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+                 }
+                 // Paper end - avoid issues with certain tasks not processing during sleep
+                 this.server.spark.executeMainThreadTasks(); // Paper - spark
+-                this.tickConnection();
++                // Reed start - network update context
++                final net.windmilltown.reed.debugblock.ServerTickPhase reed$previousNetworkPhase =
++                    net.windmilltown.reed.debugblock.ReedDebugBlockHooks.setTickPhase(
++                        net.windmilltown.reed.debugblock.ServerTickPhase.NETWORK
++                    );
++                try {
++                    this.tickConnection();
++                } finally {
++                    net.windmilltown.reed.debugblock.ReedDebugBlockHooks.setTickPhase(reed$previousNetworkPhase);
++                }
++                // Reed end - network update context
+                 this.server.spark.tickEnd(((double)(System.nanoTime() - this.currentTickStart) / 1000000D)); // Paper - spark
+                 return;
+             }
+@@ -1841,7 +1851,15 @@ public abstract class MinecraftServer extends ReentrantBlockableEventLoop<TickTa
+         this.isIteratingOverLevels = false; // Paper - Throw exception on world create while being ticked
+ 
+         profiler.popPush("connection");
+-        this.tickConnection();
++        // Reed start - network update context
++        final net.windmilltown.reed.debugblock.ServerTickPhase reed$previousNetworkPhase =
++            net.windmilltown.reed.debugblock.ReedDebugBlockHooks.setTickPhase(net.windmilltown.reed.debugblock.ServerTickPhase.NETWORK);
++        try {
++            this.tickConnection();
++        } finally {
++            net.windmilltown.reed.debugblock.ReedDebugBlockHooks.setTickPhase(reed$previousNetworkPhase);
++        }
++        // Reed end - network update context
+         profiler.popPush("players");
+         this.playerList.tick();
+         profiler.popPush("debugSubscribers");
+diff --git a/net/minecraft/server/level/ServerLevel.java b/net/minecraft/server/level/ServerLevel.java
+index cf92ce7d79cc9edf380073581b61b59004ee623a..b550a6e890af26029b6b30d5b9869dc35c341b90 100644
+--- a/net/minecraft/server/level/ServerLevel.java
++++ b/net/minecraft/server/level/ServerLevel.java
+@@ -844,9 +844,29 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
+         if (!this.isDebug() && runs) {
+             long tick = this.getGameTime();
+             profiler.push("blockTicks");
+-            this.blockTicks.tick(tick, paperConfig().environment.maxBlockTicks, this::tickBlock); // Paper - configurable max block ticks
++            // Reed start - scheduled block tick context
++            final net.windmilltown.reed.debugblock.ServerTickPhase reed$previousBlockTickPhase =
++                net.windmilltown.reed.debugblock.ReedDebugBlockHooks.setTickPhase(
++                    net.windmilltown.reed.debugblock.ServerTickPhase.SCHEDULED_BLOCK_TICKS
++                );
++            try {
++                this.blockTicks.tick(tick, paperConfig().environment.maxBlockTicks, this::tickBlock); // Paper - configurable max block ticks
++            } finally {
++                net.windmilltown.reed.debugblock.ReedDebugBlockHooks.setTickPhase(reed$previousBlockTickPhase);
++            }
++            // Reed end - scheduled block tick context
+             profiler.popPush("fluidTicks");
+-            this.fluidTicks.tick(tick, paperConfig().environment.maxFluidTicks, this::tickFluid); // Paper - configurable max fluid ticks
++            // Reed start - scheduled fluid tick context
++            final net.windmilltown.reed.debugblock.ServerTickPhase reed$previousFluidTickPhase =
++                net.windmilltown.reed.debugblock.ReedDebugBlockHooks.setTickPhase(
++                    net.windmilltown.reed.debugblock.ServerTickPhase.SCHEDULED_FLUID_TICKS
++                );
++            try {
++                this.fluidTicks.tick(tick, paperConfig().environment.maxFluidTicks, this::tickFluid); // Paper - configurable max fluid ticks
++            } finally {
++                net.windmilltown.reed.debugblock.ReedDebugBlockHooks.setTickPhase(reed$previousFluidTickPhase);
++            }
++            // Reed end - scheduled fluid tick context
+             profiler.pop();
+         }
+ 
+@@ -859,7 +879,17 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
+         this.getChunkSource().tick(haveTime, true);
+         profiler.popPush("blockEvents");
+         if (runs) {
+-            this.runBlockEvents();
++            // Reed start - block event context
++            final net.windmilltown.reed.debugblock.ServerTickPhase reed$previousBlockEventPhase =
++                net.windmilltown.reed.debugblock.ReedDebugBlockHooks.setTickPhase(
++                    net.windmilltown.reed.debugblock.ServerTickPhase.BLOCK_EVENTS
++                );
++            try {
++                this.runBlockEvents();
++            } finally {
++                net.windmilltown.reed.debugblock.ReedDebugBlockHooks.setTickPhase(reed$previousBlockEventPhase);
++            }
++            // Reed end - block event context
+         }
+ 
+         this.handlingTick = false;
+@@ -875,6 +905,12 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
+ 
+         if (this.emptyTime < 300) {
+             profiler.push("entities");
++            // Reed start - entity tick context
++            final net.windmilltown.reed.debugblock.ServerTickPhase reed$previousEntityTickPhase =
++                net.windmilltown.reed.debugblock.ReedDebugBlockHooks.setTickPhase(
++                    net.windmilltown.reed.debugblock.ServerTickPhase.ENTITY_TICKS
++                );
++            try {
+             if (this.dragonFight != null && runs) {
+                 profiler.push("dragonFight");
+                 this.dragonFight.tick();
+@@ -908,9 +944,23 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
+                         }
+                     }
+                 );
++            } finally {
++                net.windmilltown.reed.debugblock.ReedDebugBlockHooks.setTickPhase(reed$previousEntityTickPhase);
++            }
++            // Reed end - entity tick context
+             if (this.paperConfig().unsupportedSettings.ticking.blockEntities) { // Paper - option to disable ticking
+             profiler.popPush("blockEntities");
+-            this.tickBlockEntities();
++            // Reed start - block entity tick context
++            final net.windmilltown.reed.debugblock.ServerTickPhase reed$previousBlockEntityTickPhase =
++                net.windmilltown.reed.debugblock.ReedDebugBlockHooks.setTickPhase(
++                    net.windmilltown.reed.debugblock.ServerTickPhase.BLOCK_ENTITY_TICKS
++                );
++            try {
++                this.tickBlockEntities();
++            } finally {
++                net.windmilltown.reed.debugblock.ReedDebugBlockHooks.setTickPhase(reed$previousBlockEntityTickPhase);
++            }
++            // Reed end - block entity tick context
+             profiler.pop();
+             } // Paper - option to disable ticking
+             this.spigotConfig.currentPrimedTnt = 0; // Spigot
+@@ -1925,6 +1975,17 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
+         this.neighborUpdater.neighborChanged(pos, changedBlock, orientation);
+     }
+ 
++    // Reed start - source-aware neighbor change dispatch
++    @Override
++    public void neighborChanged(
++        final BlockPos pos,
++        final Block changedBlock,
++        final @Nullable Orientation orientation,
++        final @Nullable BlockPos sourcePos
++    ) {
++        this.neighborUpdater.neighborChanged(pos, changedBlock, orientation, sourcePos);
++    }
++
+     @Override
+     public void neighborChanged(
+         final BlockState state, final BlockPos pos, final Block changedBlock, final @Nullable Orientation orientation, final boolean movedByPiston
+@@ -1932,6 +1993,19 @@ public class ServerLevel extends Level implements WorldGenLevel, ServerEntityGet
+         this.neighborUpdater.neighborChanged(state, pos, changedBlock, orientation, movedByPiston);
+     }
+ 
++    @Override
++    public void neighborChanged(
++        final BlockState state,
++        final BlockPos pos,
++        final Block changedBlock,
++        final @Nullable Orientation orientation,
++        final boolean movedByPiston,
++        final @Nullable BlockPos sourcePos
++    ) {
++        this.neighborUpdater.neighborChanged(state, pos, changedBlock, orientation, movedByPiston, sourcePos);
++    }
++    // Reed end - source-aware neighbor change dispatch
++
+     @Override
+     public void broadcastEntityEvent(final Entity entity, final byte event) {
+         this.getChunkSource().sendToTrackingPlayersAndSelf(entity, new ClientboundEntityEventPacket(entity, event));
+diff --git a/net/minecraft/server/level/ServerPlayerGameMode.java b/net/minecraft/server/level/ServerPlayerGameMode.java
+index 27bdb82793250b33b457fe027c003948000857c9..1642bdc4ae02efdcd6c9930a6b8a300952178a3f 100644
+--- a/net/minecraft/server/level/ServerPlayerGameMode.java
++++ b/net/minecraft/server/level/ServerPlayerGameMode.java
+@@ -380,7 +380,11 @@ public class ServerPlayerGameMode {
+         if (state.isAir()) return false; // CraftBukkit - A plugin set block to air without cancelling
+         BlockEntity blockEntity = this.level.getBlockEntity(pos);
+         Block block = state.getBlock();
+-        if (block instanceof GameMasterBlock && !this.player.canUseGameMasterBlocks() && !(block instanceof net.minecraft.world.level.block.CommandBlock && (this.player.isCreative() && this.player.getBukkitEntity().hasPermission("minecraft.commandblock")))) { // Paper - command block permission
++        // Reed start - allow debug block breaking
++        final boolean reed$debugBlock = net.windmilltown.reed.configuration.ReedConfiguration.get().features.debugBlocks
++            && block instanceof net.minecraft.world.level.block.JigsawBlock;
++        if (block instanceof GameMasterBlock && !reed$debugBlock && !this.player.canUseGameMasterBlocks() && !(block instanceof net.minecraft.world.level.block.CommandBlock && (this.player.isCreative() && this.player.getBukkitEntity().hasPermission("minecraft.commandblock")))) { // Paper - command block permission
++        // Reed end - allow debug block breaking
+             this.level.sendBlockUpdated(pos, state, state, Block.UPDATE_ALL);
+             return false;
+         }
+diff --git a/net/minecraft/world/item/GameMasterBlockItem.java b/net/minecraft/world/item/GameMasterBlockItem.java
+index 6bcd75684bd0df96a32d16d6f680af67512016ca..1af5ed64aa9c5a4ce8236420536122a4ffc65dec 100644
+--- a/net/minecraft/world/item/GameMasterBlockItem.java
++++ b/net/minecraft/world/item/GameMasterBlockItem.java
+@@ -14,6 +14,12 @@ public class GameMasterBlockItem extends BlockItem {
+     @Override
+     protected @Nullable BlockState getPlacementState(final BlockPlaceContext context) {
+         Player player = context.getPlayer();
++        // Reed start - allow debug block placement
++        if (net.windmilltown.reed.configuration.ReedConfiguration.get().features.debugBlocks
++            && this.getBlock() instanceof net.minecraft.world.level.block.JigsawBlock) {
++            return super.getPlacementState(context);
++        }
++        // Reed end - allow debug block placement
+         return player != null && !player.canUseGameMasterBlocks() ? null : super.getPlacementState(context);
+     }
+ }
+diff --git a/net/minecraft/world/level/Level.java b/net/minecraft/world/level/Level.java
+index 4af49ee40b89e9db922aeebaa124b0ad9ef055e1..e6a8b167c56d7572df5b80103bce68a4a7bb61e4 100644
+--- a/net/minecraft/world/level/Level.java
++++ b/net/minecraft/world/level/Level.java
+@@ -174,6 +174,9 @@ public abstract class Level implements LevelAccessor, AutoCloseable, ca.spottedl
+     // Paper end - add paper world config
+ 
+     public static @Nullable BlockPos lastPhysicsProblem; // Spigot
++    // Reed start - retain the actual neighbor-change source during synchronous dispatch
++    private @Nullable BlockPos reed$currentNeighborChangeSource;
++    // Reed end - retain the actual neighbor-change source during synchronous dispatch
+     public final Map<ServerExplosion.CacheKey, Float> explosionDensityCache = new java.util.HashMap<>(); // Paper - Optimize explosions
+     public java.util.ArrayDeque<net.minecraft.world.level.block.RedstoneTorchBlock.Toggle> redstoneUpdateInfos; // Paper - Faster redstone torch rapid clock removal; Move from Map in BlockRedstoneTorch to here
+ 
+@@ -1278,11 +1281,43 @@ public abstract class Level implements LevelAccessor, AutoCloseable, ca.spottedl
+     public void neighborChanged(final BlockPos pos, final Block changedBlock, final @Nullable Orientation orientation) {
+     }
+ 
++    // Reed start - source-aware neighbor change dispatch
++    public void neighborChanged(
++        final BlockPos pos,
++        final Block changedBlock,
++        final @Nullable Orientation orientation,
++        final @Nullable BlockPos sourcePos
++    ) {
++        this.neighborChanged(pos, changedBlock, orientation);
++    }
++
+     public void neighborChanged(
+         final BlockState state, final BlockPos pos, final Block changedBlock, final @Nullable Orientation orientation, final boolean movedByPiston
+     ) {
+     }
+ 
++    public void neighborChanged(
++        final BlockState state,
++        final BlockPos pos,
++        final Block changedBlock,
++        final @Nullable Orientation orientation,
++        final boolean movedByPiston,
++        final @Nullable BlockPos sourcePos
++    ) {
++        this.neighborChanged(state, pos, changedBlock, orientation, movedByPiston);
++    }
++
++    public @Nullable BlockPos reed$currentNeighborChangeSource() {
++        return this.reed$currentNeighborChangeSource;
++    }
++
++    public @Nullable BlockPos reed$setCurrentNeighborChangeSource(final @Nullable BlockPos sourcePos) {
++        final BlockPos previous = this.reed$currentNeighborChangeSource;
++        this.reed$currentNeighborChangeSource = sourcePos;
++        return previous;
++    }
++    // Reed end - source-aware neighbor change dispatch
++
+     @Override
+     public void neighborShapeChanged(
+         final Direction direction,
+diff --git a/net/minecraft/world/level/block/DiodeBlock.java b/net/minecraft/world/level/block/DiodeBlock.java
+index 2339099e05af80b234e64778822b012cc6318157..9472883084f3f6e2d2c1a633bc3b436dadccc5fc 100644
+--- a/net/minecraft/world/level/block/DiodeBlock.java
++++ b/net/minecraft/world/level/block/DiodeBlock.java
+@@ -192,7 +192,7 @@ public abstract class DiodeBlock extends HorizontalDirectionalBlock {
+         Direction direction = state.getValue(FACING);
+         BlockPos oppositePos = pos.relative(direction.getOpposite());
+         Orientation orientation = ExperimentalRedstoneUtils.initialOrientation(level, direction.getOpposite(), Direction.UP);
+-        level.neighborChanged(oppositePos, this, orientation);
++        level.neighborChanged(oppositePos, this, orientation, pos); // Reed - retain NC source
+         level.updateNeighborsAtExceptFromFacing(oppositePos, this, direction, orientation);
+     }
+ 
+diff --git a/net/minecraft/world/level/block/JigsawBlock.java b/net/minecraft/world/level/block/JigsawBlock.java
+index d02f32efccd4ed50fc1f14e531fc3ce15a1461c4..b728760b633ca0aea0c77d132598ea313894977a 100644
+--- a/net/minecraft/world/level/block/JigsawBlock.java
++++ b/net/minecraft/world/level/block/JigsawBlock.java
+@@ -4,10 +4,15 @@ import com.mojang.serialization.MapCodec;
+ import net.minecraft.core.BlockPos;
+ import net.minecraft.core.Direction;
+ import net.minecraft.core.FrontAndTop;
++import net.minecraft.server.level.ServerLevel;
++import net.minecraft.util.RandomSource;
+ import net.minecraft.world.InteractionResult;
+ import net.minecraft.world.entity.player.Player;
+ import net.minecraft.world.item.context.BlockPlaceContext;
++import net.minecraft.world.item.context.UseOnContext;
+ import net.minecraft.world.level.Level;
++import net.minecraft.world.level.LevelReader;
++import net.minecraft.world.level.ScheduledTickAccess;
+ import net.minecraft.world.level.block.entity.BlockEntity;
+ import net.minecraft.world.level.block.entity.JigsawBlockEntity;
+ import net.minecraft.world.level.block.state.BlockBehaviour;
+@@ -16,7 +21,9 @@ import net.minecraft.world.level.block.state.StateDefinition;
+ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+ import net.minecraft.world.level.block.state.properties.EnumProperty;
+ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
++import net.minecraft.world.level.redstone.Orientation;
+ import net.minecraft.world.phys.BlockHitResult;
++import org.jspecify.annotations.Nullable;
+ 
+ public class JigsawBlock extends Block implements EntityBlock, GameMasterBlock {
+     public static final MapCodec<JigsawBlock> CODEC = simpleCodec(JigsawBlock::new);
+@@ -49,7 +56,11 @@ public class JigsawBlock extends Block implements EntityBlock, GameMasterBlock {
+ 
+     @Override
+     public BlockState getStateForPlacement(final BlockPlaceContext context) {
+-        Direction front = context.getClickedFace();
++        // Reed start - orient debug blocks toward the player's view
++        Direction front = net.windmilltown.reed.configuration.ReedConfiguration.get().features.debugBlocks
++            ? context.getNearestLookingDirection()
++            : context.getClickedFace();
++        // Reed end - orient debug blocks toward the player's view
+         Direction top;
+         if (front.getAxis() == Direction.Axis.Y) {
+             top = context.getHorizontalDirection().getOpposite();
+@@ -65,10 +76,44 @@ public class JigsawBlock extends Block implements EntityBlock, GameMasterBlock {
+         return new JigsawBlockEntity(worldPosition, blockState);
+     }
+ 
++    // Reed start - report completed debug block placement
++    @Override
++    protected void onPlace(
++        final BlockState state,
++        final Level level,
++        final BlockPos pos,
++        final BlockState oldState,
++        final boolean movedByPiston,
++        final @Nullable UseOnContext context
++    ) {
++        super.onPlace(state, level, pos, oldState, movedByPiston, context);
++        if (!net.windmilltown.reed.configuration.ReedConfiguration.get().features.debugBlocks
++            || !io.papermc.paper.util.MCUtil.isMainThread()
++            || context == null
++            || !(level.getBlockEntity(pos) instanceof JigsawBlockEntity jigsawBlockEntity)) {
++            return;
++        }
++        final Player player = context.getPlayer();
++        net.windmilltown.reed.debugblock.ReedDebugBlockHooks.reportPlaced(
++            player == null ? null : (org.bukkit.entity.Player) player.getBukkitEntity(), jigsawBlockEntity
++        );
++    }
++    // Reed end - report completed debug block placement
++
+     @Override
+     protected InteractionResult useWithoutItem(
+         final BlockState state, final Level level, final BlockPos pos, final Player player, final BlockHitResult hitResult
+     ) {
++        // Reed start - debug block interaction
++        if (net.windmilltown.reed.configuration.ReedConfiguration.get().features.debugBlocks
++            && io.papermc.paper.util.MCUtil.isMainThread()
++            && level.getBlockEntity(pos) instanceof JigsawBlockEntity jigsawBlockEntity) {
++            player.closeContainer();
++            return net.windmilltown.reed.debugblock.ReedDebugBlockHooks.reportUse(
++                (org.bukkit.entity.Player) player.getBukkitEntity(), jigsawBlockEntity
++            ) ? InteractionResult.SUCCESS : InteractionResult.PASS;
++        }
++        // Reed end - debug block interaction
+         if (level.getBlockEntity(pos) instanceof JigsawBlockEntity jigsawBlockEntity && player.canUseGameMasterBlocks()) {
+             player.openJigsawBlock(jigsawBlockEntity);
+             return InteractionResult.SUCCESS;
+@@ -94,4 +139,133 @@ public class JigsawBlock extends Block implements EntityBlock, GameMasterBlock {
+     public static Direction getTopFacing(final BlockState state) {
+         return state.getValue(ORIENTATION).top();
+     }
++
++    // Reed start - debug block redstone behavior
++    @Override
++    protected BlockState updateShape(
++        final BlockState state,
++        final LevelReader level,
++        final ScheduledTickAccess ticks,
++        final BlockPos pos,
++        final Direction directionToNeighbour,
++        final BlockPos neighbourPos,
++        final BlockState neighbourState,
++        final RandomSource random
++    ) {
++        if (!net.windmilltown.reed.configuration.ReedConfiguration.get().features.debugBlocks
++            || !io.papermc.paper.util.MCUtil.isMainThread()
++            || !(level instanceof ServerLevel serverLevel)
++            || !(level.getBlockEntity(pos) instanceof JigsawBlockEntity jigsawBlockEntity)) {
++            return state;
++        }
++        net.windmilltown.reed.debugblock.DebugBlockSettings settings = jigsawBlockEntity.reed$getDebugBlock().getSettings();
++        if (!settings.enabled()) {
++            return state;
++        }
++        if (settings.reportUpdateShape()) {
++            net.windmilltown.reed.debugblock.ReedDebugBlockHooks.reportUpdateShape(
++                jigsawBlockEntity, serverLevel, neighbourPos, neighbourState.getBlock()
++            );
++        }
++        settings = jigsawBlockEntity.reed$getDebugBlock().getSettings();
++        if (settings.enabled() && settings.respondToUpdateShape()) {
++            this.reed$updateState(
++                serverLevel,
++                pos,
++                neighbourPos,
++                neighbourState.getBlock(),
++                jigsawBlockEntity,
++                settings,
++                state,
++                net.windmilltown.reed.debugblock.DebugBlockUpdateType.UPDATE_SHAPE
++            );
++        }
++        return state;
++    }
++
++    @Override
++    protected void neighborChanged(
++        final BlockState state,
++        final Level level,
++        final BlockPos pos,
++        final Block sourceBlock,
++        final @Nullable Orientation orientation,
++        final boolean movedByPiston
++    ) {
++        if (!net.windmilltown.reed.configuration.ReedConfiguration.get().features.debugBlocks
++            || !io.papermc.paper.util.MCUtil.isMainThread()
++            || !(level instanceof ServerLevel serverLevel)
++            || !(level.getBlockEntity(pos) instanceof JigsawBlockEntity jigsawBlockEntity)) {
++            return;
++        }
++        final BlockPos sourcePos = level.reed$currentNeighborChangeSource();
++        net.windmilltown.reed.debugblock.DebugBlockSettings settings = jigsawBlockEntity.reed$getDebugBlock().getSettings();
++        if (!settings.enabled()) {
++            return;
++        }
++        if (settings.reportNeighborChange()) {
++            net.windmilltown.reed.debugblock.ReedDebugBlockHooks.reportNeighborChange(
++                jigsawBlockEntity, serverLevel, sourcePos, sourceBlock
++            );
++        }
++        settings = jigsawBlockEntity.reed$getDebugBlock().getSettings();
++        if (settings.enabled() && settings.respondToNeighborChange()) {
++            this.reed$updateState(
++                serverLevel,
++                pos,
++                sourcePos,
++                sourceBlock,
++                jigsawBlockEntity,
++                settings,
++                state,
++                net.windmilltown.reed.debugblock.DebugBlockUpdateType.NEIGHBOR_CHANGE
++            );
++        }
++    }
++
++    @Override
++    protected boolean hasAnalogOutputSignal(final BlockState state) {
++        return net.windmilltown.reed.configuration.ReedConfiguration.get().features.debugBlocks;
++    }
++
++    @Override
++    protected int getAnalogOutputSignal(final BlockState state, final Level level, final BlockPos pos, final Direction direction) {
++        if (!net.windmilltown.reed.configuration.ReedConfiguration.get().features.debugBlocks
++            || !io.papermc.paper.util.MCUtil.isMainThread()
++            || !(level.getBlockEntity(pos) instanceof JigsawBlockEntity jigsawBlockEntity)) {
++            return 0;
++        }
++        final net.windmilltown.reed.debugblock.DebugBlockSettings settings = jigsawBlockEntity.reed$getDebugBlock().getSettings();
++        return settings.enabled() ? settings.analogOutputStrength() : 0;
++    }
++
++    private void reed$updateState(
++        final ServerLevel level,
++        final BlockPos pos,
++        final @Nullable BlockPos sourcePos,
++        final Block sourceBlock,
++        final JigsawBlockEntity blockEntity,
++        final net.windmilltown.reed.debugblock.DebugBlockSettings settings,
++        final BlockState state,
++        final net.windmilltown.reed.debugblock.DebugBlockUpdateType cause
++    ) {
++        final boolean powered = level.hasNeighborSignal(pos) || settings.quasiConnectivity() && level.hasNeighborSignal(pos.above());
++        final boolean oldPowered = blockEntity.reed$getDebugBlock().isPowered();
++        if (powered == oldPowered) {
++            return;
++        }
++        blockEntity.reed$setPowered(powered);
++        final Direction front = powered ? Direction.UP : Direction.DOWN;
++        Direction top = state.getValue(ORIENTATION).top();
++        if (top.getAxis() == Direction.Axis.Y) {
++            top = Direction.EAST;
++        }
++        level.setBlock(pos, state.setValue(ORIENTATION, FrontAndTop.fromFrontAndTop(front, top)), Block.UPDATE_CLIENTS);
++        if (blockEntity.reed$getDebugBlock().getSettings().reportPowerChange()) {
++            net.windmilltown.reed.debugblock.ReedDebugBlockHooks.reportPowerChange(
++                blockEntity, oldPowered, powered, cause, level, sourcePos, sourceBlock
++            );
++        }
++    }
++    // Reed end - debug block redstone behavior
+ }
+diff --git a/net/minecraft/world/level/block/ObserverBlock.java b/net/minecraft/world/level/block/ObserverBlock.java
+index 680a357db27407e2dc21c615fadaf9754421c361..9e68649fdcfa8cb3107304a76238fc34da958b73 100644
+--- a/net/minecraft/world/level/block/ObserverBlock.java
++++ b/net/minecraft/world/level/block/ObserverBlock.java
+@@ -98,7 +98,7 @@ public class ObserverBlock extends DirectionalBlock {
+         Direction direction = state.getValue(FACING);
+         BlockPos oppositePos = pos.relative(direction.getOpposite());
+         Orientation orientation = ExperimentalRedstoneUtils.initialOrientation(level, direction.getOpposite(), null);
+-        level.neighborChanged(oppositePos, this, orientation);
++        level.neighborChanged(oppositePos, this, orientation, pos); // Reed - retain NC source
+         level.updateNeighborsAtExceptFromFacing(oppositePos, this, direction, orientation);
+     }
+ 
+diff --git a/net/minecraft/world/level/block/entity/JigsawBlockEntity.java b/net/minecraft/world/level/block/entity/JigsawBlockEntity.java
+index bcad783f3fc82d9bae6f7aa8279ed07e05147b94..bd6deb45a52f9f9ef9af462c6fc68afce27f49fa 100644
+--- a/net/minecraft/world/level/block/entity/JigsawBlockEntity.java
++++ b/net/minecraft/world/level/block/entity/JigsawBlockEntity.java
+@@ -1,10 +1,14 @@
+ package net.minecraft.world.level.block.entity;
+ 
+ import com.mojang.serialization.Codec;
++import java.util.Objects;
++import java.util.Optional;
++import java.util.UUID;
+ import net.minecraft.core.BlockPos;
+ import net.minecraft.core.Holder;
+ import net.minecraft.core.HolderLookup;
+ import net.minecraft.core.Registry;
++import net.minecraft.core.UUIDUtil;
+ import net.minecraft.core.registries.Registries;
+ import net.minecraft.data.worldgen.Pools;
+ import net.minecraft.nbt.CompoundTag;
+@@ -42,6 +46,9 @@ public class JigsawBlockEntity extends BlockEntity {
+     private String finalState = "minecraft:air";
+     private int placementPriority = 0;
+     private int selectionPriority = 0;
++    // Reed start - debug block state
++    private final ReedDebugBlock reed$debugBlock = new ReedDebugBlock();
++    // Reed end - debug block state
+ 
+     public JigsawBlockEntity(final BlockPos worldPosition, final BlockState blockState) {
+         super(BlockEntityTypes.JIGSAW, worldPosition, blockState);
+@@ -113,6 +120,9 @@ public class JigsawBlockEntity extends BlockEntity {
+         output.store("joint", JigsawBlockEntity.JointType.CODEC, this.joint);
+         output.putInt("placement_priority", this.placementPriority);
+         output.putInt("selection_priority", this.selectionPriority);
++        // Reed start - save debug block state
++        this.reed$debugBlock.save(output.child("reed").child("debug_block"));
++        // Reed end - save debug block state
+     }
+ 
+     @Override
+@@ -125,6 +135,9 @@ public class JigsawBlockEntity extends BlockEntity {
+         this.joint = input.read("joint", JigsawBlockEntity.JointType.CODEC).orElseGet(() -> StructureTemplate.getDefaultJointType(this.getBlockState()));
+         this.placementPriority = input.getIntOr("placement_priority", 0);
+         this.selectionPriority = input.getIntOr("selection_priority", 0);
++        // Reed start - load debug block state
++        this.reed$debugBlock.load(input.childOrEmpty("reed").childOrEmpty("debug_block"));
++        // Reed end - load debug block state
+     }
+ 
+     @Override
+@@ -149,6 +162,147 @@ public class JigsawBlockEntity extends BlockEntity {
+         JigsawPlacement.generateJigsaw(level, pool, this.target, levels, position, keepJigsaws);
+     }
+ 
++    // Reed start - debug block API and persistence
++    public net.windmilltown.reed.debugblock.DebugBlock reed$getDebugBlock() {
++        return this.reed$debugBlock;
++    }
++
++    public void reed$setPowered(final boolean powered) {
++        this.reed$debugBlock.powered = powered;
++        this.reed$markDebugBlockChanged();
++    }
++
++    private void reed$markDebugBlockChanged() {
++        if (this.level != null) {
++            this.level.blockEntityChanged(this.worldPosition);
++        }
++    }
++
++    private void reed$requireServerThread() {
++        if (!io.papermc.paper.util.MCUtil.isMainThread()) {
++            throw new IllegalStateException("Debug block API must be used from the server thread");
++        }
++    }
++
++    private final class ReedDebugBlock implements net.windmilltown.reed.debugblock.DebugBlock {
++        private net.windmilltown.reed.debugblock.DebugBlockSettings settings = net.windmilltown.reed.debugblock.DebugBlockSettings.DEFAULT;
++        private boolean powered;
++        private UUID owner;
++        private String debugName;
++
++        @Override
++        public org.bukkit.block.Block getBlock() {
++            JigsawBlockEntity.this.reed$requireServerThread();
++            if (JigsawBlockEntity.this.level == null) {
++                throw new IllegalStateException("Debug block is not attached to a level");
++            }
++            return org.bukkit.craftbukkit.block.CraftBlock.at(JigsawBlockEntity.this.level, JigsawBlockEntity.this.worldPosition);
++        }
++
++        @Override
++        public net.windmilltown.reed.debugblock.DebugBlockSettings getSettings() {
++            JigsawBlockEntity.this.reed$requireServerThread();
++            return this.settings;
++        }
++
++        @Override
++        public void setSettings(final net.windmilltown.reed.debugblock.DebugBlockSettings settings) {
++            JigsawBlockEntity.this.reed$requireServerThread();
++            final net.windmilltown.reed.debugblock.DebugBlockSettings newSettings = Objects.requireNonNull(settings, "settings");
++            final int oldAnalogOutput = this.settings.enabled() ? this.settings.analogOutputStrength() : 0;
++            final int newAnalogOutput = newSettings.enabled() ? newSettings.analogOutputStrength() : 0;
++            this.settings = newSettings;
++            JigsawBlockEntity.this.reed$markDebugBlockChanged();
++            if (oldAnalogOutput != newAnalogOutput && JigsawBlockEntity.this.level != null) {
++                JigsawBlockEntity.this.level.updateNeighbourForOutputSignal(
++                    JigsawBlockEntity.this.worldPosition, JigsawBlockEntity.this.getBlockState().getBlock()
++                );
++            }
++        }
++
++        @Override
++        public boolean isPowered() {
++            JigsawBlockEntity.this.reed$requireServerThread();
++            return this.powered;
++        }
++
++        @Override
++        public Optional<UUID> getOwner() {
++            JigsawBlockEntity.this.reed$requireServerThread();
++            return Optional.ofNullable(this.owner);
++        }
++
++        @Override
++        public void setOwner(final UUID owner) {
++            JigsawBlockEntity.this.reed$requireServerThread();
++            this.owner = Objects.requireNonNull(owner, "owner");
++            JigsawBlockEntity.this.reed$markDebugBlockChanged();
++        }
++
++        @Override
++        public void clearOwner() {
++            JigsawBlockEntity.this.reed$requireServerThread();
++            this.owner = null;
++            JigsawBlockEntity.this.reed$markDebugBlockChanged();
++        }
++
++        @Override
++        public Optional<String> getName() {
++            JigsawBlockEntity.this.reed$requireServerThread();
++            return Optional.ofNullable(this.debugName);
++        }
++
++        @Override
++        public void setName(final String name) {
++            JigsawBlockEntity.this.reed$requireServerThread();
++            this.debugName = Objects.requireNonNull(name, "name");
++            JigsawBlockEntity.this.reed$markDebugBlockChanged();
++        }
++
++        @Override
++        public void clearName() {
++            JigsawBlockEntity.this.reed$requireServerThread();
++            this.debugName = null;
++            JigsawBlockEntity.this.reed$markDebugBlockChanged();
++        }
++
++        private void save(final ValueOutput output) {
++            output.putInt("version", 1);
++            output.storeNullable("owner", UUIDUtil.CODEC, this.owner);
++            if (this.debugName != null) {
++                output.putString("name", this.debugName);
++            }
++            final ValueOutput settingsOutput = output.child("settings");
++            settingsOutput.putBoolean("enabled", this.settings.enabled());
++            settingsOutput.putBoolean("report_update_shape", this.settings.reportUpdateShape());
++            settingsOutput.putBoolean("report_neighbor_change", this.settings.reportNeighborChange());
++            settingsOutput.putBoolean("report_power_change", this.settings.reportPowerChange());
++            settingsOutput.putBoolean("respond_to_update_shape", this.settings.respondToUpdateShape());
++            settingsOutput.putBoolean("respond_to_neighbor_change", this.settings.respondToNeighborChange());
++            settingsOutput.putBoolean("quasi_connectivity", this.settings.quasiConnectivity());
++            settingsOutput.putInt("analog_output_strength", this.settings.analogOutputStrength());
++            output.child("state").putBoolean("powered", this.powered);
++        }
++
++        private void load(final ValueInput input) {
++            final ValueInput settingsInput = input.childOrEmpty("settings");
++            this.settings = new net.windmilltown.reed.debugblock.DebugBlockSettings(
++                settingsInput.getBooleanOr("enabled", false),
++                settingsInput.getBooleanOr("report_update_shape", false),
++                settingsInput.getBooleanOr("report_neighbor_change", false),
++                settingsInput.getBooleanOr("report_power_change", true),
++                settingsInput.getBooleanOr("respond_to_update_shape", false),
++                settingsInput.getBooleanOr("respond_to_neighbor_change", true),
++                settingsInput.getBooleanOr("quasi_connectivity", false),
++                Math.max(0, settingsInput.getIntOr("analog_output_strength", 0))
++            );
++            this.powered = input.childOrEmpty("state").getBooleanOr("powered", false);
++            this.owner = input.read("owner", UUIDUtil.CODEC).orElse(null);
++            this.debugName = input.getString("name").orElse(null);
++        }
++    }
++    // Reed end - debug block API and persistence
++
+     public enum JointType implements StringRepresentable {
+         ROLLABLE("rollable"),
+         ALIGNED("aligned");
+diff --git a/net/minecraft/world/level/block/piston/PistonHeadBlock.java b/net/minecraft/world/level/block/piston/PistonHeadBlock.java
+index f8caa0b3c21766dbad73c524c1680346e4257188..feff80fa6fbd82eb372de631a67aab4889fcb385 100644
+--- a/net/minecraft/world/level/block/piston/PistonHeadBlock.java
++++ b/net/minecraft/world/level/block/piston/PistonHeadBlock.java
+@@ -116,7 +116,8 @@ public class PistonHeadBlock extends DirectionalBlock {
+             level.neighborChanged(
+                 pos.relative(state.getValue(FACING).getOpposite()),
+                 block,
+-                ExperimentalRedstoneUtils.withFront(orientation, state.getValue(FACING).getOpposite())
++                ExperimentalRedstoneUtils.withFront(orientation, state.getValue(FACING).getOpposite()),
++                pos // Reed - retain NC source
+             );
+         }
+     }
+diff --git a/net/minecraft/world/level/redstone/CollectingNeighborUpdater.java b/net/minecraft/world/level/redstone/CollectingNeighborUpdater.java
+index 1c7862ae4eaeb4d83e0fb423c86489f534e92be5..6f063b971b1dab1ec509759d24c66858402463f6 100644
+--- a/net/minecraft/world/level/redstone/CollectingNeighborUpdater.java
++++ b/net/minecraft/world/level/redstone/CollectingNeighborUpdater.java
+@@ -48,16 +48,42 @@ public class CollectingNeighborUpdater implements NeighborUpdater {
+ 
+     @Override
+     public void neighborChanged(final BlockPos pos, final Block block, final @Nullable Orientation orientation) {
+-        this.addAndRun(pos, new CollectingNeighborUpdater.SimpleNeighborUpdate(pos, block, orientation));
++        this.neighborChanged(pos, block, orientation, null);
++    }
++
++    // Reed start - source-aware neighbor change dispatch
++    @Override
++    public void neighborChanged(
++        final BlockPos pos,
++        final Block block,
++        final @Nullable Orientation orientation,
++        final @Nullable BlockPos sourcePos
++    ) {
++        this.addAndRun(pos, new CollectingNeighborUpdater.SimpleNeighborUpdate(pos, block, orientation, sourcePos));
+     }
+ 
+     @Override
+     public void neighborChanged(
+         final BlockState state, final BlockPos pos, final Block block, final @Nullable Orientation orientation, final boolean movedByPiston
+     ) {
+-        this.addAndRun(pos, new CollectingNeighborUpdater.FullNeighborUpdate(state, pos.immutable(), block, orientation, movedByPiston));
++        this.neighborChanged(state, pos, block, orientation, movedByPiston, null);
+     }
+ 
++    @Override
++    public void neighborChanged(
++        final BlockState state,
++        final BlockPos pos,
++        final Block block,
++        final @Nullable Orientation orientation,
++        final boolean movedByPiston,
++        final @Nullable BlockPos sourcePos
++    ) {
++        this.addAndRun(
++            pos, new CollectingNeighborUpdater.FullNeighborUpdate(state, pos.immutable(), block, orientation, movedByPiston, sourcePos)
++        );
++    }
++    // Reed end - source-aware neighbor change dispatch
++
+     @Override
+     public void updateNeighborsAtExceptFromFacing(
+         final BlockPos pos, final Block block, final @Nullable Direction skipDirection, final @Nullable Orientation orientation
+@@ -111,11 +137,18 @@ public class CollectingNeighborUpdater implements NeighborUpdater {
+         }
+     }
+ 
+-    private record FullNeighborUpdate(BlockState state, BlockPos pos, Block block, @Nullable Orientation orientation, boolean movedByPiston)
++    private record FullNeighborUpdate(
++        BlockState state,
++        BlockPos pos,
++        Block block,
++        @Nullable Orientation orientation,
++        boolean movedByPiston,
++        @Nullable BlockPos sourcePos
++    )
+         implements CollectingNeighborUpdater.NeighborUpdates {
+         @Override
+         public boolean runNext(final Level level) {
+-            NeighborUpdater.executeUpdate(level, this.state, this.pos, this.block, this.orientation, this.movedByPiston);
++            NeighborUpdater.executeUpdate(level, this.state, this.pos, this.block, this.orientation, this.movedByPiston, this.sourcePos);
+             return false;
+         }
+ 
+@@ -200,11 +233,12 @@ public class CollectingNeighborUpdater implements NeighborUpdater {
+         }
+     }
+ 
+-    private record SimpleNeighborUpdate(BlockPos pos, Block block, @Nullable Orientation orientation) implements CollectingNeighborUpdater.NeighborUpdates {
++    private record SimpleNeighborUpdate(BlockPos pos, Block block, @Nullable Orientation orientation, @Nullable BlockPos sourcePos)
++        implements CollectingNeighborUpdater.NeighborUpdates {
+         @Override
+         public boolean runNext(final Level level) {
+             BlockState state = level.getBlockState(this.pos);
+-            NeighborUpdater.executeUpdate(level, state, this.pos, this.block, this.orientation, false);
++            NeighborUpdater.executeUpdate(level, state, this.pos, this.block, this.orientation, false, this.sourcePos);
+             return false;
+         }
+ 
+diff --git a/net/minecraft/world/level/redstone/ExperimentalRedstoneWireEvaluator.java b/net/minecraft/world/level/redstone/ExperimentalRedstoneWireEvaluator.java
+index 7bbfa84ed3a148d9307d3637c99f5b1f7abd96f3..104d849cb8569b002d14b19dc63bfbbc711cae77 100644
+--- a/net/minecraft/world/level/redstone/ExperimentalRedstoneWireEvaluator.java
++++ b/net/minecraft/world/level/redstone/ExperimentalRedstoneWireEvaluator.java
+@@ -75,11 +75,16 @@ public class ExperimentalRedstoneWireEvaluator extends RedstoneWireEvaluator {
+                     BlockPos neighborPos = wirePos.relative(neighborDirection);
+                     BlockState neighborState = level.getBlockState(neighborPos);
+                     Orientation neighborOrientation = orientation.withFrontPreserveUp(neighborDirection);
+-                    level.neighborChanged(neighborState, neighborPos, this.wireBlock, neighborOrientation, false);
++                    level.neighborChanged(neighborState, neighborPos, this.wireBlock, neighborOrientation, false, wirePos); // Reed - retain NC source
+                     if (neighborState.isRedstoneConductor(level, neighborPos)) {
+                         for (Direction direction : neighborOrientation.getDirections()) {
+                             if (direction != neighborDirection.getOpposite()) {
+-                                level.neighborChanged(neighborPos.relative(direction), this.wireBlock, neighborOrientation.withFrontPreserveUp(direction));
++                                level.neighborChanged(
++                                    neighborPos.relative(direction),
++                                    this.wireBlock,
++                                    neighborOrientation.withFrontPreserveUp(direction),
++                                    neighborPos
++                                ); // Reed - retain NC source
+                             }
+                         }
+                     }
+diff --git a/net/minecraft/world/level/redstone/InstantNeighborUpdater.java b/net/minecraft/world/level/redstone/InstantNeighborUpdater.java
+index ee8c768107d0139b5cc4a483a59307f43b80de24..de1cba1d7bd291a79190a0cea15d326fa82fdd09 100644
+--- a/net/minecraft/world/level/redstone/InstantNeighborUpdater.java
++++ b/net/minecraft/world/level/redstone/InstantNeighborUpdater.java
+@@ -28,14 +28,38 @@ public class InstantNeighborUpdater implements NeighborUpdater {
+ 
+     @Override
+     public void neighborChanged(final BlockPos pos, final Block changedBlock, final @Nullable Orientation orientation) {
++        this.neighborChanged(pos, changedBlock, orientation, null);
++    }
++
++    // Reed start - source-aware neighbor change dispatch
++    @Override
++    public void neighborChanged(
++        final BlockPos pos,
++        final Block changedBlock,
++        final @Nullable Orientation orientation,
++        final @Nullable BlockPos sourcePos
++    ) {
+         BlockState state = this.level.getBlockState(pos);
+-        this.neighborChanged(state, pos, changedBlock, orientation, false);
++        this.neighborChanged(state, pos, changedBlock, orientation, false, sourcePos);
+     }
+ 
+     @Override
+     public void neighborChanged(
+         final BlockState state, final BlockPos pos, final Block changedBlock, final @Nullable Orientation orientation, final boolean movedByPiston
+     ) {
+-        NeighborUpdater.executeUpdate(this.level, state, pos, changedBlock, orientation, movedByPiston);
++        this.neighborChanged(state, pos, changedBlock, orientation, movedByPiston, null);
++    }
++
++    @Override
++    public void neighborChanged(
++        final BlockState state,
++        final BlockPos pos,
++        final Block changedBlock,
++        final @Nullable Orientation orientation,
++        final boolean movedByPiston,
++        final @Nullable BlockPos sourcePos
++    ) {
++        NeighborUpdater.executeUpdate(this.level, state, pos, changedBlock, orientation, movedByPiston, sourcePos);
+     }
++    // Reed end - source-aware neighbor change dispatch
+ }
+diff --git a/net/minecraft/world/level/redstone/NeighborUpdater.java b/net/minecraft/world/level/redstone/NeighborUpdater.java
+index 041ed95948ff6bb4cf3610ce4522a6ba105b6812..431a7b9fcb7e05990ddf426f83279e48971eff1d 100644
+--- a/net/minecraft/world/level/redstone/NeighborUpdater.java
++++ b/net/minecraft/world/level/redstone/NeighborUpdater.java
+@@ -21,14 +21,36 @@ public interface NeighborUpdater {
+ 
+     void neighborChanged(BlockPos pos, Block changedBlock, @Nullable Orientation orientation);
+ 
++    // Reed start - source-aware neighbor change dispatch
++    default void neighborChanged(
++        final BlockPos pos,
++        final Block changedBlock,
++        final @Nullable Orientation orientation,
++        final @Nullable BlockPos sourcePos
++    ) {
++        this.neighborChanged(pos, changedBlock, orientation);
++    }
++
+     void neighborChanged(BlockState state, BlockPos pos, Block changedBlock, @Nullable Orientation orientation, boolean movedByPiston);
+ 
++    default void neighborChanged(
++        final BlockState state,
++        final BlockPos pos,
++        final Block changedBlock,
++        final @Nullable Orientation orientation,
++        final boolean movedByPiston,
++        final @Nullable BlockPos sourcePos
++    ) {
++        this.neighborChanged(state, pos, changedBlock, orientation, movedByPiston);
++    }
++    // Reed end - source-aware neighbor change dispatch
++
+     default void updateNeighborsAtExceptFromFacing(
+         final BlockPos pos, final Block block, final @Nullable Direction skipDirection, final @Nullable Orientation orientation
+     ) {
+         for (Direction direction : UPDATE_ORDER) {
+             if (direction != skipDirection) {
+-                this.neighborChanged(pos.relative(direction), block, null);
++                this.neighborChanged(pos.relative(direction), block, null, pos); // Reed - retain NC source
+             }
+         }
+     }
+@@ -67,21 +89,33 @@ public interface NeighborUpdater {
+         final boolean movedByPiston
+     ) {
+         // Paper start - Add source block to BlockPhysicsEvent
+-        executeUpdate(level, state, pos, changedBlock, orientation, movedByPiston, pos);
++        executeUpdate(level, state, pos, changedBlock, orientation, movedByPiston, null); // Reed - source is unknown
+     }
+ 
+-    static void executeUpdate(Level level, BlockState state, BlockPos pos, Block changedBlock, @Nullable Orientation orientation, boolean movedByPiston, BlockPos sourcePos) {
++    static void executeUpdate(Level level, BlockState state, BlockPos pos, Block changedBlock, @Nullable Orientation orientation, boolean movedByPiston, @Nullable BlockPos sourcePos) {
+         // Paper end - Add source block to BlockPhysicsEvent
+         try {
+             // CraftBukkit start
+-            org.bukkit.event.block.BlockPhysicsEvent event = new org.bukkit.event.block.BlockPhysicsEvent(org.bukkit.craftbukkit.block.CraftBlock.at(level, pos), state.asBlockData(), org.bukkit.craftbukkit.block.CraftBlock.at(level, sourcePos)); // Paper - Add source block to BlockPhysicsEvent
++            final BlockPos eventSourcePos = sourcePos == null ? pos : sourcePos; // Reed - preserve Paper's event fallback without fabricating a debug source
++            org.bukkit.event.block.BlockPhysicsEvent event = new org.bukkit.event.block.BlockPhysicsEvent(org.bukkit.craftbukkit.block.CraftBlock.at(level, pos), state.asBlockData(), org.bukkit.craftbukkit.block.CraftBlock.at(level, eventSourcePos)); // Paper - Add source block to BlockPhysicsEvent
+             level.getCraftServer().getPluginManager().callEvent(event);
+ 
+             if (event.isCancelled()) {
+                 return;
+             }
+             // CraftBukkit end
+-            state.handleNeighborChanged(level, pos, changedBlock, orientation, movedByPiston);
++            // Reed start - expose the actual NC source for the duration of this synchronous call
++            if (!net.windmilltown.reed.configuration.ReedConfiguration.get().features.debugBlocks) {
++                state.handleNeighborChanged(level, pos, changedBlock, orientation, movedByPiston);
++            } else {
++                final BlockPos previousSourcePos = level.reed$setCurrentNeighborChangeSource(sourcePos);
++                try {
++                    state.handleNeighborChanged(level, pos, changedBlock, orientation, movedByPiston);
++                } finally {
++                    level.reed$setCurrentNeighborChangeSource(previousSourcePos);
++                }
++            }
++            // Reed end - expose the actual NC source for the duration of this synchronous call
+             // Spigot start
+         } catch (StackOverflowError ex) {
+             level.lastPhysicsProblem = pos.immutable();
+diff --git a/net/minecraft/world/ticks/LevelTicks.java b/net/minecraft/world/ticks/LevelTicks.java
+index 7bf9e93692debcef511bfa316aeef32ae8a7d3b7..a98b0f7f09b1721f659a2ee39fdc615a76278a6e 100644
+--- a/net/minecraft/world/ticks/LevelTicks.java
++++ b/net/minecraft/world/ticks/LevelTicks.java
+@@ -187,7 +187,18 @@ public class LevelTicks<T> implements LevelTickAccess<T> {
+             }
+ 
+             this.alreadyRunThisTick.add(entry);
+-            output.accept(entry.pos(), entry.type());
++            // Reed start - expose scheduled tick metadata during the existing callback
++            if (!net.windmilltown.reed.configuration.ReedConfiguration.get().features.debugBlocks) {
++                output.accept(entry.pos(), entry.type());
++            } else {
++                net.windmilltown.reed.debugblock.ReedDebugBlockHooks.beginScheduledTick(entry.priority().getValue(), entry.subTickOrder());
++                try {
++                    output.accept(entry.pos(), entry.type());
++                } finally {
++                    net.windmilltown.reed.debugblock.ReedDebugBlockHooks.endScheduledTick();
++                }
++            }
++            // Reed end - expose scheduled tick metadata during the existing callback
+         }
+     }
+ 

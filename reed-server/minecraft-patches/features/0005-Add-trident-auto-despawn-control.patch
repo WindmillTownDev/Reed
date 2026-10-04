@@ -1,0 +1,60 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Windmill1055 <windmill1055@gmail.com>
+Date: Mon, 27 Jul 2026 18:38:59 +0800
+Subject: [PATCH] Add trident auto despawn control
+
+
+diff --git a/net/minecraft/world/entity/projectile/arrow/ThrownTrident.java b/net/minecraft/world/entity/projectile/arrow/ThrownTrident.java
+index 95613ffd7434ff803c7961371b9e75257f5a128f..1bc342990b2dd8676cd44c4521de2222e335de9b 100644
+--- a/net/minecraft/world/entity/projectile/arrow/ThrownTrident.java
++++ b/net/minecraft/world/entity/projectile/arrow/ThrownTrident.java
+@@ -29,6 +29,10 @@ import net.minecraft.world.phys.Vec3;
+ import org.jspecify.annotations.Nullable;
+ 
+ public class ThrownTrident extends AbstractArrow {
++    // Reed start - trident auto despawn control
++    private static final String REED_DATA_TAG = "reed";
++    private static final String AUTO_DESPAWN_TAG = "auto_despawn";
++    // Reed end - trident auto despawn control
+     private static final EntityDataAccessor<Byte> ID_LOYALTY = SynchedEntityData.defineId(ThrownTrident.class, EntityDataSerializers.BYTE);
+     private static final EntityDataAccessor<Boolean> ID_FOIL = SynchedEntityData.defineId(ThrownTrident.class, EntityDataSerializers.BOOLEAN);
+     private static final float WATER_INERTIA = 0.99F;
+@@ -230,8 +234,38 @@ public class ThrownTrident extends AbstractArrow {
+             : 0;
+     }
+ 
++    // Reed start - trident auto despawn control
++    public boolean isAutoDespawn() {
++        net.minecraft.world.item.component.CustomData customData = this.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
++        if (customData != null && customData.contains(REED_DATA_TAG)) {
++            net.minecraft.nbt.CompoundTag reedData = customData.getUnsafe().getCompoundOrEmpty(REED_DATA_TAG);
++            if (reedData.contains(AUTO_DESPAWN_TAG)) {
++                return reedData.getBooleanOr(AUTO_DESPAWN_TAG, true);
++            }
++        }
++        return net.windmilltown.reed.configuration.ReedConfiguration.get().features.tridentAutoDespawn;
++    }
++
++    public void setAutoDespawn(final boolean autoDespawn) {
++        net.minecraft.world.item.component.CustomData customData = this.get(net.minecraft.core.component.DataComponents.CUSTOM_DATA);
++        if (customData == null) {
++            customData = net.minecraft.world.item.component.CustomData.EMPTY;
++        }
++        this.setComponent(net.minecraft.core.component.DataComponents.CUSTOM_DATA, customData.update(tag -> {
++            net.minecraft.nbt.CompoundTag reedData = tag.getCompoundOrEmpty(REED_DATA_TAG);
++            reedData.putBoolean(AUTO_DESPAWN_TAG, autoDespawn);
++            tag.put(REED_DATA_TAG, reedData);
++        }));
++    }
++    // Reed end - trident auto despawn control
++
+     @Override
+     public void tickDespawn() {
++        // Reed start - trident auto despawn control
++        if (!this.isAutoDespawn()) {
++            return;
++        }
++        // Reed end - trident auto despawn control
+         int loyalty = this.entityData.get(ID_LOYALTY);
+         if (this.pickup != AbstractArrow.Pickup.ALLOWED || loyalty <= 0) {
+             super.tickDespawn();

@@ -6,11 +6,15 @@ build
 
 /run
 
-/fork-server/build.gradle.kts
-/fork-server/src/minecraft
+/reed-server/build.gradle.kts
+/reed-server/src/minecraft
 /paper-server
-/fork-api/build.gradle.kts
+/reed-api/build.gradle.kts
 /paper-api
 /paper-api-generator
 
 .idea/
+
+# Local documentation and converter build artifacts
+/docs/
+/reed-debug-block-converter-*.jar

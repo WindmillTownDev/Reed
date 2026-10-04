@@ -1,6 +1,10 @@
 #
 # https://help.github.com/articles/dealing-with-line-endings/
 #
+# Keep repository text deterministic across Windows and Unix. In particular,
+# source and patch files must remain UTF-8 without a BOM and use LF.
+*               text=auto eol=lf
+
 # Linux start script should use lf
 /gradlew        text eol=lf
 

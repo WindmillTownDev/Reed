@@ -1,0 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Windmill1055 <windmill1055@gmail.com>
+Date: Mon, 27 Jul 2026 17:39:08 +0800
+Subject: [PATCH] Add always tick entities
+
+
+diff --git a/io/papermc/paper/entity/activation/ActivationRange.java b/io/papermc/paper/entity/activation/ActivationRange.java
+index 829f7685904fd741e00403647ae76d32275c34a3..fc25ac8939e759b7e44e753a1f887bf0ed6dfaac 100644
+--- a/io/papermc/paper/entity/activation/ActivationRange.java
++++ b/io/papermc/paper/entity/activation/ActivationRange.java
+@@ -289,6 +289,12 @@ public final class ActivationRange {
+      * @return
+      */
+     public static boolean checkIfActive(final Entity entity) {
++        // Reed start - always tick entities
++        if (net.windmilltown.reed.configuration.ReedConfiguration.get().paperFix.alwaysTickEntities) {
++            return true;
++        }
++        // Reed end - always tick entities
++
+         // Never safe to skip fireworks or item gravity
+         if (entity instanceof FireworkRocketEntity || (entity instanceof ItemEntity && (entity.tickCount + entity.getId()) % 4 == 0)) { // Needed for item gravity, see ItemEntity tick
+             return true;
